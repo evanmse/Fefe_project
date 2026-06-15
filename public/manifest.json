@@ -1,0 +1,11 @@
+{
+  "name": "Scuderia Ferrari LiDAR Ride Height",
+  "short_name": "Ferrari LiDAR",
+  "description": "Dashboard télémétrie F1 - Scuderia Ferrari",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "orientation": "any",
+  "icons": []
+}

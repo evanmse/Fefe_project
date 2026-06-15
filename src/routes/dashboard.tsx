@@ -26,6 +26,11 @@ import FourCornerLiDAR from '~/components/ferrari/FourCornerLiDAR'
 import LapPredictor from '~/components/ferrari/LapPredictor'
 import TyreDegradation from '~/components/ferrari/TyreDegradation'
 import topdown from '~/assets/dashboard-car-topdown.png'
+import { LidarMonitor } from '~/components/ferrari/LidarMonitor'
+import FuelSimulator from '~/components/ferrari/FuelSimulator'
+import SetupComparison from '~/components/ferrari/SetupComparison'
+import WeatherOverlay from '~/components/ferrari/WeatherOverlay'
+
 import heroCar from '~/assets/vitrine-hero-car.jpg'
 
 export const Route = createFileRoute('/dashboard')({
@@ -96,6 +101,17 @@ function Cockpit() {
       content: <TelemetryView setup={setup} aero={aero} live={live} />,
     },
     { id: 'simulators', label: 'Simulators', content: <SimulatorsView /> },
+    {
+      id: 'performance',
+      label: 'Performance',
+      content: (
+        <div className="flex flex-col gap-6">
+          <FuelSimulator setup={setup} laps={22} />
+          <SetupComparison currentSetup={setup} onApply={setSetup} />
+          <WeatherOverlay live={live} />
+        </div>
+      ),
+    },
   ]
 
   return (
@@ -148,6 +164,11 @@ function Cockpit() {
       {/* 4 coins LiDAR */}
       <section className="mx-auto max-w-7xl px-6 pb-6">
         <FourCornerLiDAR live={live} setup={setup} />
+      </section>
+
+      {/* Monitoring capteurs LiDAR */}
+      <section className="mx-auto max-w-7xl px-6 pb-6">
+        <LidarMonitor live={live} />
       </section>
 
       <Chatbot />

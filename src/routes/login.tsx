@@ -80,6 +80,12 @@ function LoginPage() {
             </div>
           )}
 
+          <div className="border border-[#2a2a2a] bg-[#0d0d0d] px-4 py-3 text-center">
+            <div className="label-mono text-[#8a8a8a]">Identifiants de démonstration</div>
+            <div className="value-mono mt-1 text-sm text-[#00ff41]">Écurie : FERRARI</div>
+            <div className="value-mono text-sm text-[#00ff41]">Numéro : 16</div>
+          </div>
+
           <button
             type="submit"
             className="bg-[#dc0000] px-6 py-3 title-display text-sm text-white transition hover:bg-[#ff1e00]"
