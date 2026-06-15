@@ -17,6 +17,14 @@ import { TelemetryView } from '~/components/ferrari/views/TelemetryView'
 import { SimulatorsView } from '~/components/ferrari/views/SimulatorsView'
 import { DataWaterfall } from '~/components/ferrari/DataWaterfall'
 import { Chatbot } from '~/components/ferrari/Chatbot'
+import { TrackStatusPanel } from '~/components/ferrari/TrackStatusPanel'
+import AeroChart from '~/components/ferrari/AeroChart'
+import AudioEngine from '~/components/ferrari/AudioEngine'
+import DRSIndicator from '~/components/ferrari/DRSIndicator'
+import ExportButton from '~/components/ferrari/ExportButton'
+import FourCornerLiDAR from '~/components/ferrari/FourCornerLiDAR'
+import LapPredictor from '~/components/ferrari/LapPredictor'
+import TyreDegradation from '~/components/ferrari/TyreDegradation'
 import topdown from '~/assets/dashboard-car-topdown.png'
 import heroCar from '~/assets/vitrine-hero-car.jpg'
 
@@ -72,6 +80,7 @@ function Cockpit() {
 
   const aero = useMemo(() => computeAero(setup), [setup])
   const live = useLiveTelemetry(setup)
+  const [audioOn, setAudioOn] = useState(false)
 
   const logout = () => {
     localStorage.removeItem('ferrari_user')
@@ -91,7 +100,7 @@ function Cockpit() {
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] pb-24 text-white">
-      <CockpitHeader live={live} status={aero.status} onLogout={logout} />
+      <CockpitHeader live={live} status={aero.status} audioOn={audioOn} onToggleAudio={() => setAudioOn(!audioOn)} onLogout={logout} />
       <CockpitHero live={live} />
 
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8">
@@ -110,17 +119,36 @@ function Cockpit() {
         </section>
 
         {/* Plateforme aéro + télémétrie */}
-        <section className="grid gap-6 lg:grid-cols-2">
+        <section className="grid gap-6 lg:grid-cols-[1.1fr_0.95fr]">
           <Car3DPanel setup={setup} aero={aero} />
-          <TelemetryPanel live={live} />
+          <div className="grid gap-6">
+            <TelemetryPanel live={live} />
+            <TrackStatusPanel live={live} />
+          </div>
         </section>
 
         {/* Flux de données */}
         <DataWaterfall />
 
-        {/* Station d'ingénierie (Shell + views) */}
+      <AudioEngine rpm={live.rpm} active={audioOn} />
+
+      {/* Station d'ingénierie (Shell + views) */}
         <Shell tabs={tabs} />
+
+        {/* Graphique aéro + prédiction tour */}
+        <section className="grid gap-6 lg:grid-cols-2">
+          <AeroChart setup={setup} aero={aero} />
+          <div className="grid gap-6">
+            <LapPredictor setup={setup} aero={aero} />
+            <TyreDegradation live={live} laps={22} />
+          </div>
+        </section>
       </div>
+
+      {/* 4 coins LiDAR */}
+      <section className="mx-auto max-w-7xl px-6 pb-6">
+        <FourCornerLiDAR live={live} setup={setup} />
+      </section>
 
       <Chatbot />
     </main>
@@ -131,10 +159,14 @@ function Cockpit() {
 function CockpitHeader({
   live,
   status,
+  audioOn,
+  onToggleAudio,
   onLogout,
 }: {
   live: LiveTelemetry
   status: 'OPTIMAL' | 'SUBOPTIMAL' | 'CRITICAL'
+  audioOn: boolean
+  onToggleAudio: () => void
   onLogout: () => void
 }) {
   return (
@@ -157,7 +189,15 @@ function CockpitHeader({
             <span className="h-1.5 w-1.5 rounded-full bg-[#ffb800]" />
             {(live.rpm / 1000).toFixed(1)}k tr/min
           </span>
+          <DRSIndicator drs={live.drs} speed={live.speed} />
           <StatusPill status={status} />
+          <ExportButton live={live} />
+          <button
+            onClick={onToggleAudio}
+            className={`border px-3 py-1.5 label-mono transition hover:border-[#dc0000] hover:text-white ${audioOn ? 'border-[#00ff41] text-[#00ff41]' : 'border-[#2a2a2a]'}`}
+          >
+            {audioOn ? 'Audio ON' : 'Audio OFF'}
+          </button>
           <button
             onClick={onLogout}
             className="border border-[#2a2a2a] px-3 py-1.5 label-mono transition hover:border-[#dc0000] hover:text-white"
@@ -185,10 +225,11 @@ function CockpitHero({ live }: { live: LiveTelemetry }) {
           Télémétrie temps réel
         </h1>
         <p className="max-w-xl text-sm text-[#bdbdbd]">
-          Réglez le setup, surveillez la garde au sol mesurée au LiDAR et l'appui
-          aéro qui en découle. Données rafraîchies toutes les 200 ms.
+          Réglez le setup et surveillez la garde au sol mesurée par le LiDAR
+          sous pneu. Le dashboard détecte la stabilité piste et les sorties de
+          trajectoire en temps réel, données 200 ms.
         </p>
-        <div className="mt-2 flex gap-6">
+        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-start">
           <HeroMini label="Garde au sol AV" value={`${live.rhFront.toFixed(1)} mm`} />
           <HeroMini label="Garde au sol AR" value={`${live.rhRear.toFixed(1)} mm`} />
           <HeroMini label="Appui" value={`${live.downforce.toFixed(0)} kg`} />

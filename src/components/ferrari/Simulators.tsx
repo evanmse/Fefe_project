@@ -95,19 +95,21 @@ export function EngineSim() {
 /* -------------------- DriftSim -------------------- */
 export function DriftSim() {
   const [slip, setSlip] = useState(8)
-  const angle = useRef(0)
-  const [, force] = useState(0)
+  const angleRef = useRef(0)
+  const [tick, setTick] = useState(0)
 
   useEffect(() => {
     let raf = 0
     const loop = () => {
-      angle.current += slip * 0.04
-      force((n) => (n + 1) % 1000)
+      angleRef.current += slip * 0.04
+      setTick((n) => (n + 1) % 1000)
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
   }, [slip])
+
+  const angle = angleRef.current
 
   return (
     <SimFrame title="Dérive arrière" tag="SLIP ANGLE">
@@ -121,7 +123,7 @@ export function DriftSim() {
           />
           <div
             className="absolute left-1/2 top-1/2 h-px w-20 origin-left bg-[#00ff41]/60"
-            style={{ transform: `rotate(${angle.current % 360}deg)` }}
+            style={{ transform: `rotate(${angle % 360}deg)` }}
           />
         </div>
         <div className="flex items-center justify-between">
@@ -162,7 +164,6 @@ export function LidarRawSim() {
       ctx.fillRect(0, 0, w, h)
 
       phase += 0.05
-      // ligne de balayage
       const sweepX = (phase * 60) % w
       ctx.strokeStyle = 'rgba(0,255,65,0.25)'
       ctx.beginPath()
@@ -170,7 +171,6 @@ export function LidarRawSim() {
       ctx.lineTo(sweepX, h)
       ctx.stroke()
 
-      // nuage de points (surface de la piste)
       for (let i = 0; i < 6; i++) {
         const x = (sweepX + i * 3) % w
         const surface =
@@ -244,21 +244,15 @@ export function GForceSim() {
         <div className="flex flex-col gap-2">
           <div>
             <span className="label-mono">Latérale</span>
-            <div className="value-mono text-xl font-bold text-[#ffb800]">
-              {g.x.toFixed(1)} G
-            </div>
+            <div className="value-mono text-xl font-bold text-[#ffb800]">{g.x.toFixed(1)} G</div>
           </div>
           <div>
             <span className="label-mono">Longitudinale</span>
-            <div className="value-mono text-xl font-bold text-[#00ff41]">
-              {g.y.toFixed(1)} G
-            </div>
+            <div className="value-mono text-xl font-bold text-[#00ff41]">{g.y.toFixed(1)} G</div>
           </div>
           <div>
             <span className="label-mono">Pic</span>
-            <div className="value-mono text-xl font-bold text-[#dc0000]">
-              {peak.current.toFixed(1)} G
-            </div>
+            <div className="value-mono text-xl font-bold text-[#dc0000]">{peak.current.toFixed(1)} G</div>
           </div>
         </div>
       </div>

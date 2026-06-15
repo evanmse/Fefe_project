@@ -2,19 +2,17 @@
   "name": "scuderia-lidar-ride-height",
   "private": true,
   "type": "module",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Scuderia Ferrari · LiDAR Ride Height — vitrine publique + cockpit ingénieur",
   "scripts": {
-    "dev": "vite dev --port 3000",
-    "build": "vite build",
-    "start": "node .output/server/index.mjs",
-    "serve": "vite preview",
+    "dev": "vite --port 3000",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.95.0",
     "@tanstack/react-router-devtools": "^1.95.0",
-    "@tanstack/react-start": "^1.95.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

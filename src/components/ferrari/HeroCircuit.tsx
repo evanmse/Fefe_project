@@ -1,6 +1,7 @@
 /* ============================================================
    HeroCircuit.tsx — circuit SVG (version simple, legacy).
    Supplanté par ScrollCircuit inline dans routes/index.tsx.
+   Conservé pour référence uniquement.
    ============================================================ */
 
 export function HeroCircuit({ className = '' }: { className?: string }) {
