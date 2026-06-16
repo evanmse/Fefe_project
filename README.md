@@ -68,7 +68,7 @@ Il répond aux questions sur la garde au sol, l'aérodynamique, la suspension, e
 
 ## 👨‍💻 Auteur
 
-**Seydina SY** — [@BNWHITE](https://github.com/BNWHITE) · [Site live](https://scuderia-lidar-rideheight.vercel.app)
+**Evan Massé & Seydina SY** — [@BNWHITE](https://github.com/BNWHITE) · [Site live](https://scuderia-lidar-rideheight.vercel.app)
 
 ## 📄 License
 
