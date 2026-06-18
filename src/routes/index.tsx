@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { FerrariShield } from '~/components/ferrari/FerrariShield'
+import { useTheme } from '~/contexts/ThemeContext'
 import heroCar from '~/assets/vitrine-hero-car.jpg'
 import helmetBg from '~/assets/vitrine-helmet-bg.png'
 import historyCar from '~/assets/vitrine-history-car.jpg'
@@ -41,6 +42,7 @@ function Vitrine() {
 /* -------------------- Nav -------------------- */
 function TopNav() {
   const [scrolled, setScrolled] = useState(false)
+  const { theme, toggle } = useTheme()
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40)
     onScroll()
@@ -67,12 +69,21 @@ function TopNav() {
           <a href="#palmares" className="label-mono hover:text-white">Palmarès</a>
           <a href="#circuit" className="label-mono hover:text-white">Monza</a>
         </nav>
-        <Link
-          to="/login"
-          className="bg-[#dc0000] px-4 py-2 label-mono text-white transition hover:bg-[#ff1e00]"
-        >
-          Cockpit ingénieur
-        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={toggle}
+            className="px-3 py-2 label-mono text-sm transition hover:text-[#dc0000]"
+            title={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+          <Link
+            to="/login"
+            className="bg-[#dc0000] px-4 py-2 label-mono text-white transition hover:bg-[#ff1e00]"
+          >
+            Cockpit ingénieur
+          </Link>
+        </div>
       </div>
     </header>
   )

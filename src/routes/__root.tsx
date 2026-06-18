@@ -7,6 +7,7 @@ import {
 import type { ReactNode } from 'react'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import { AuthProvider } from '~/contexts/AuthContext'
+import { ThemeProvider } from '~/contexts/ThemeContext'
 import appCss from '../styles.css?url'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
@@ -51,11 +52,13 @@ export const Route = createRootRoute({
 function RootComponent() {
   return (
     <RootDocument>
-      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-        <AuthProvider>
-          <Outlet />
-        </AuthProvider>
-      </GoogleOAuthProvider>
+      <ThemeProvider>
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+          <AuthProvider>
+            <Outlet />
+          </AuthProvider>
+        </GoogleOAuthProvider>
+      </ThemeProvider>
     </RootDocument>
   )
 }

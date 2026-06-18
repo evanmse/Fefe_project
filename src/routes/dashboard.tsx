@@ -9,6 +9,7 @@ import {
 } from '~/components/ferrari/Dashboard'
 import { useLiveTelemetry } from '~/hooks/useLiveTelemetry'
 import { useAuth } from '~/contexts/AuthContext'
+import { useTheme } from '~/contexts/ThemeContext'
 import { FerrariShield } from '~/components/ferrari/FerrariShield'
 import { Kpi, StatusPill } from '~/components/ferrari/atoms'
 import { Shell, type ShellTab } from '~/components/ferrari/Shell'
@@ -132,6 +133,7 @@ function CockpitHeader({
   status: 'OPTIMAL' | 'SUBOPTIMAL' | 'CRITICAL'
   onLogout: () => void
 }) {
+  const { theme, toggle } = useTheme()
   return (
     <header className="sticky top-0 z-40 border-b border-[#1f1f1f] bg-black/85 backdrop-blur">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-3">
@@ -153,6 +155,13 @@ function CockpitHeader({
             {(live.rpm / 1000).toFixed(1)}k tr/min
           </span>
           <StatusPill status={status} />
+          <button
+            onClick={toggle}
+            className="px-2 py-1.5 label-mono text-sm transition hover:text-[#dc0000]"
+            title={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
           <button
             onClick={onLogout}
             className="border border-[#2a2a2a] px-3 py-1.5 label-mono transition hover:border-[#dc0000] hover:text-white"
