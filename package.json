@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@react-oauth/google": "^0.13.5",
     "@tanstack/react-router": "^1.95.0",
     "@tanstack/react-router-devtools": "^1.95.0",
     "@tanstack/react-start": "^1.95.0",

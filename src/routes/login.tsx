@@ -1,6 +1,8 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
+import { GoogleLogin } from '@react-oauth/google'
 import { FerrariShield } from '~/components/ferrari/FerrariShield'
+import { useAuth } from '~/contexts/AuthContext'
 import heroCar from '~/assets/vitrine-hero-car.jpg'
 
 export const Route = createFileRoute('/login')({
@@ -15,17 +17,20 @@ const NUMBER = '16'
 
 function LoginPage() {
   const navigate = useNavigate()
+  const { loginWithGoogle, loginWithLocal } = useAuth()
   const [team, setTeam] = useState('')
   const [number, setNumber] = useState('')
   const [error, setError] = useState('')
+  const [showLocal, setShowLocal] = useState(false)
 
-  const submit = (e: React.FormEvent) => {
+  const handleGoogleSuccess = (credentialResponse: any) => {
+    loginWithGoogle(credentialResponse.credential)
+    navigate({ to: '/dashboard' })
+  }
+
+  const handleLocalSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (team.trim().toUpperCase() === TEAM && number.trim() === NUMBER) {
-      localStorage.setItem(
-        'ferrari_user',
-        JSON.stringify({ team: TEAM, number: NUMBER, ts: Date.now() }),
-      )
+    if (loginWithLocal(team, number)) {
       navigate({ to: '/dashboard' })
     } else {
       setError("Identifiants invalides. Indice : l'écurie et le numéro 16.")
@@ -42,7 +47,7 @@ function LoginPage() {
           ← Retour vitrine
         </Link>
 
-        <form onSubmit={submit} className="panel panel-grid flex flex-col gap-6 p-8">
+        <div className="panel panel-grid flex flex-col gap-6 p-8">
           <div className="flex items-center gap-3">
             <FerrariShield size={44} />
             <div>
@@ -51,46 +56,81 @@ function LoginPage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <label className="label-mono">Écurie</label>
-            <input
-              value={team}
-              onChange={(e) => setTeam(e.target.value)}
-              placeholder="FERRARI"
-              autoComplete="off"
-              className="bg-[#0a0a0a] px-4 py-3 value-mono uppercase tracking-widest text-white outline-none focus:ring-1 focus:ring-[#dc0000]"
+          {/* ===== Google Sign-In ===== */}
+          <div className="flex flex-col items-center gap-4 py-2">
+            <p className="label-mono text-center">Connexion sécurisée via Google</p>
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setError('Erreur Google — réessaie.')}
+              theme="filled_black"
+              shape="rectangular"
+              size="large"
+              text="signin_with"
             />
+            <p className="text-[10px] leading-relaxed text-[#555] text-center">
+              Ton email Google est vérifié pour te donner accès au cockpit télémétrie.
+            </p>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <label className="label-mono">Numéro pilote</label>
-            <input
-              value={number}
-              onChange={(e) => setNumber(e.target.value)}
-              placeholder="16"
-              inputMode="numeric"
-              autoComplete="off"
-              className="bg-[#0a0a0a] px-4 py-3 value-mono text-2xl tracking-widest text-white outline-none focus:ring-1 focus:ring-[#dc0000]"
-            />
+          {/* ===== Séparateur ===== */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 border-t border-[#1f1f1f]" />
+            <span className="label-mono text-[10px] text-[#555]">ou identifiants pilote</span>
+            <div className="flex-1 border-t border-[#1f1f1f]" />
           </div>
 
-          {error && (
-            <div className="border border-[#dc0000]/40 bg-[#dc0000]/10 px-4 py-3 text-sm text-[#ff6a6a]">
-              {error}
-            </div>
+          {/* ===== Fallback local FERRARI/16 ===== */}
+          {!showLocal ? (
+            <button
+              onClick={() => setShowLocal(true)}
+              className="border border-[#2a2a2a] px-6 py-3 label-mono text-sm text-white transition hover:border-[#dc0000]"
+            >
+              Accès identifiants pilote
+            </button>
+          ) : (
+            <form onSubmit={handleLocalSubmit} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="label-mono">Écurie</label>
+                <input
+                  value={team}
+                  onChange={(e) => setTeam(e.target.value)}
+                  placeholder="FERRARI"
+                  autoComplete="off"
+                  className="bg-[#0a0a0a] px-4 py-3 value-mono uppercase tracking-widest text-white outline-none focus:ring-1 focus:ring-[#dc0000]"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="label-mono">Numéro pilote</label>
+                <input
+                  value={number}
+                  onChange={(e) => setNumber(e.target.value)}
+                  placeholder="16"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  className="bg-[#0a0a0a] px-4 py-3 value-mono text-2xl tracking-widest text-white outline-none focus:ring-1 focus:ring-[#dc0000]"
+                />
+              </div>
+
+              {error && (
+                <div className="border border-[#dc0000]/40 bg-[#dc0000]/10 px-4 py-3 text-sm text-[#ff6a6a]">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="bg-[#dc0000] px-6 py-3 title-display text-sm text-white transition hover:bg-[#ff1e00]"
+              >
+                Déverrouiller le cockpit
+              </button>
+            </form>
           )}
 
-          <button
-            type="submit"
-            className="bg-[#dc0000] px-6 py-3 title-display text-sm text-white transition hover:bg-[#ff1e00]"
-          >
-            Déverrouiller le cockpit
-          </button>
-
-          <p className="label-mono text-center">
-            Auth simulée · localStorage · aucun backend
+          <p className="label-mono text-center text-[10px]">
+            Google OAuth · localStorage
           </p>
-        </form>
+        </div>
       </div>
     </main>
   )

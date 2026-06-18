@@ -5,16 +5,18 @@ import {
   createRootRoute,
 } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { GoogleOAuthProvider } from '@react-oauth/google'
+import { AuthProvider } from '~/contexts/AuthContext'
 import appCss from '../styles.css?url'
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
 export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      {
-        title: 'Scuderia Ferrari · LiDAR Ride Height',
-      },
+      { title: 'Scuderia Ferrari · LiDAR Ride Height' },
       {
         name: 'description',
         content:
@@ -30,10 +32,7 @@ export const Route = createRootRoute({
       { property: 'og:type', content: 'website' },
     ],
     links: [
-      {
-        rel: 'preconnect',
-        href: 'https://fonts.googleapis.com',
-      },
+      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
       {
         rel: 'preconnect',
         href: 'https://fonts.gstatic.com',
@@ -52,7 +51,11 @@ export const Route = createRootRoute({
 function RootComponent() {
   return (
     <RootDocument>
-      <Outlet />
+      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+        <AuthProvider>
+          <Outlet />
+        </AuthProvider>
+      </GoogleOAuthProvider>
     </RootDocument>
   )
 }

@@ -8,6 +8,7 @@ import {
   type LiveTelemetry,
 } from '~/components/ferrari/Dashboard'
 import { useLiveTelemetry } from '~/hooks/useLiveTelemetry'
+import { useAuth } from '~/contexts/AuthContext'
 import { FerrariShield } from '~/components/ferrari/FerrariShield'
 import { Kpi, StatusPill } from '~/components/ferrari/atoms'
 import { Shell, type ShellTab } from '~/components/ferrari/Shell'
@@ -29,23 +30,19 @@ export const Route = createFileRoute('/dashboard')({
 })
 
 /* ============================================================
-   Garde d'accès — protégé par localStorage (front-only)
+   Garde d'accès — protégé par Google OAuth / localStorage
    ============================================================ */
 function DashboardGate() {
   const navigate = useNavigate()
-  const [authed, setAuthed] = useState<boolean | null>(null)
+  const { user, loading, logout } = useAuth()
 
   useEffect(() => {
-    const raw = localStorage.getItem('ferrari_user')
-    if (raw) {
-      setAuthed(true)
-    } else {
-      setAuthed(false)
+    if (!loading && !user) {
       navigate({ to: '/login' })
     }
-  }, [navigate])
+  }, [loading, user, navigate])
 
-  if (authed !== true) {
+  if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#0a0a0a]">
         <div className="badge-live">
@@ -56,14 +53,15 @@ function DashboardGate() {
     )
   }
 
-  return <Cockpit />
+  if (!user) return null
+
+  return <Cockpit onLogout={logout} user={user} />
 }
 
 /* ============================================================
    Cockpit ingénieur
    ============================================================ */
-function Cockpit() {
-  const navigate = useNavigate()
+function Cockpit({ user, onLogout }: { user: { name: string; email: string; picture?: string }; onLogout: () => void }) {
   const [setup, setSetup] = useState<SetupState>({
     rhFront: 22,
     rhRear: 38,
@@ -73,11 +71,6 @@ function Cockpit() {
 
   const aero = useMemo(() => computeAero(setup), [setup])
   const live = useLiveTelemetry(setup)
-
-  const logout = () => {
-    localStorage.removeItem('ferrari_user')
-    navigate({ to: '/login' })
-  }
 
   const tabs: ShellTab[] = [
     { id: 'overview', label: 'Overview', content: <OverviewView live={live} /> },
@@ -93,7 +86,7 @@ function Cockpit() {
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] pb-24 text-white">
-      <CockpitHeader live={live} status={aero.status} onLogout={logout} />
+      <CockpitHeader live={live} status={aero.status} onLogout={onLogout} />
       <CockpitHero live={live} />
 
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8">

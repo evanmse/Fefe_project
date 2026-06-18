@@ -12,6 +12,45 @@ const FALLBACK = `Voici ce que je peux t'expliquer :
 • Capteurs IoT : température, humidité, luminosité
 • Buzzer G2E : PIT_STOP, SAFETY_CAR, RELEASE, HOLD, EMERGENCY`
 
+/** Rendu Markdown léger sans dépendances */
+function renderMarkdown(text: string): string {
+  let html = text
+    // Échapper HTML d'abord
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
+  // Liens [texte](url)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="text-[#ffb800] underline hover:text-[#ffd700]">$1</a>')
+
+  // Gras **texte** ou __texte__
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>')
+  html = html.replace(/__(.+?)__/g, '<strong class="text-white font-semibold">$1</strong>')
+
+  // Italique *texte* ou _texte_ (après le gras)
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
+  html = html.replace(/_(.+?)_/g, '<em>$1</em>')
+
+  // Code inline `code`
+  html = html.replace(/`([^`]+)`/g, '<code class="bg-[#1f1f1f] px-1 py-0.5 text-[#00ff41] font-mono text-[11px]">$1</code>')
+
+  // Listes à puces • ou - ou *
+  html = html.replace(/^[•\-*]\s+(.+)$/gm, '<li class="ml-4 list-disc text-[#cfcfcf] leading-relaxed">$1</li>')
+  // Fusionner <li> consécutifs dans un <ul>
+  html = html.replace(/((?:<li[^>]*>.*?<\/li>\s*)+)/g, '<ul class="space-y-0.5 my-1">$1</ul>')
+
+  // Sauts de ligne
+  html = html.replace(/\n{2,}/g, '<br/><br/>')
+  html = html.replace(/\n/g, '<br/>')
+
+  // Nettoyer les <br/> dans les <ul>/<li>
+  html = html.replace(/<ul[^>]*>(.*?)<\/ul>/gs, (_, content) =>
+    `<ul class="space-y-0.5 my-1">${content.replace(/<br\s*\/?>/gi, '')}</ul>`
+  )
+
+  return html
+}
+
 function localAnswer(q: string): string {
   const ql = q.toLowerCase()
   if (ql.includes('lidar') || ql.includes('capteur')) return '🔬 Le LiDAR G2D mesure la luminosité (0-2150 lux) et la distance. Calibration : ADC 123→6lx, 854→121lx, 1007→2150lx. La détection hors-piste se fait par réflectivité > 80% (bande blanche).'
@@ -31,6 +70,7 @@ export function Chatbot() {
   const [messages, setMessages] = useState<Msg[]>([{ from: 'eng' as const, text: WELCOME }])
   const [loading, setLoading] = useState(false)
   const [voiceEnabled, setVoiceEnabled] = useState(false)
+  const [voiceMode, setVoiceMode] = useState<'manual' | 'wake'>('manual')
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const scrollBottom = useCallback(() => {
@@ -80,6 +120,10 @@ export function Chatbot() {
   const handleSend = useCallback(() => { if (input.trim() && !loading) sendMessage(input) }, [input, loading, sendMessage])
   const handleVoiceTranscript = useCallback((text: string) => { sendMessage(text) }, [sendMessage])
 
+  const toggleVoiceMode = useCallback(() => {
+    setVoiceMode((m) => (m === 'manual' ? 'wake' : 'manual'))
+  }, [])
+
   return (
     <>
       <button onClick={() => setOpen((o) => !o)}
@@ -91,8 +135,15 @@ export function Chatbot() {
           <div className="flex items-center justify-between border-b border-[#1f1f1f] bg-[#0d0d0d] px-4 py-3">
             <span className="badge-live text-[#dc0000]"><span className="h-1.5 w-1.5 rounded-full bg-[#dc0000] animate-pulse-dot" />Ferrari IA · Groq + Mistral</span>
             <div className="flex items-center gap-2">
-              <VoiceAssistant onTranscript={handleVoiceTranscript} onSpeak={() => {}} enabled={voiceEnabled} />
+              <VoiceAssistant onTranscript={handleVoiceTranscript} onSpeak={() => {}} enabled={voiceEnabled} mode={voiceMode} />
               <button onClick={() => setVoiceEnabled((v) => !v)} className={`label-mono text-[10px] ${voiceEnabled ? 'text-[#00ff41]' : 'text-[#555]'}`} title={voiceEnabled ? 'Voix ON' : 'Voix OFF'}>{voiceEnabled ? '🔊' : '🔇'}</button>
+              <button
+                onClick={toggleVoiceMode}
+                className={`label-mono text-[10px] ${voiceMode === 'wake' ? 'text-[#ffb800]' : 'text-[#555]'}`}
+                title={voiceMode === 'wake' ? 'Mode mains-libres — Dis « Ferrari »' : 'Mode manuel — Clique sur 🎤'}
+              >
+                {voiceMode === 'wake' ? '🙌' : '👆'}
+              </button>
               <button onClick={() => setOpen(false)} className="label-mono hover:text-white">✕</button>
             </div>
           </div>
@@ -100,7 +151,11 @@ export function Chatbot() {
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.from === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] px-3 py-2 text-[13px] leading-relaxed ${m.from === 'user' ? 'bg-[#dc0000] text-white' : 'border border-[#1f1f1f] bg-[#0d0d0d] text-[#cfcfcf]'}`}>{m.text}</div>
+                {m.from === 'user' ? (
+                  <div className="max-w-[80%] px-3 py-2 text-[13px] leading-relaxed bg-[#dc0000] text-white">{m.text}</div>
+                ) : (
+                  <div className="max-w-[80%] px-3 py-2 text-[13px] leading-relaxed border border-[#1f1f1f] bg-[#0d0d0d] text-[#cfcfcf] chat-msg" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.text) }} />
+                )}
               </div>
             ))}
             {loading && (
@@ -110,7 +165,7 @@ export function Chatbot() {
 
           <div className="flex gap-2 border-t border-[#1f1f1f] p-3">
             <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !loading && handleSend()}
-              placeholder={voiceEnabled ? 'Écris ou parle 🎤…' : 'Pose ta question setup…'} disabled={loading}
+              placeholder={voiceMode === 'wake' ? 'Dis « Ferrari » ou écris… 🎤' : voiceEnabled ? 'Écris ou parle 🎤…' : 'Pose ta question setup…'} disabled={loading}
               className="flex-1 bg-[#0a0a0a] px-3 py-2 text-sm text-white outline-none placeholder:text-[#555] focus:ring-1 focus:ring-[#dc0000] disabled:opacity-50" />
             <button onClick={handleSend} disabled={loading || !input.trim()} className="bg-[#dc0000] px-3 py-2 label-mono text-white hover:bg-[#ff1e00] disabled:opacity-50">{loading ? '...' : 'Envoyer'}</button>
           </div>

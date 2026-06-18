@@ -225,4 +225,27 @@
   .animate-ticker {
     animation: ticker 22s linear infinite;
   }
+
+  /* Chat markdown : style des éléments rendus par renderMarkdown() */
+  .chat-msg a {
+    @apply underline text-[#ffb800] hover:text-[#ffd700] transition-colors;
+  }
+  .chat-msg strong {
+    @apply text-white font-semibold;
+  }
+  .chat-msg em {
+    @apply text-[#cfcfcf] italic;
+  }
+  .chat-msg code {
+    @apply bg-[#1f1f1f] px-1 py-0.5 text-[#00ff41] font-mono text-[11px] rounded-sm;
+  }
+  .chat-msg ul {
+    @apply space-y-0.5 my-1 ml-2;
+  }
+  .chat-msg li {
+    @apply ml-4 list-disc text-[#cfcfcf] leading-relaxed;
+  }
+  .chat-msg p {
+    @apply mb-1 last:mb-0;
+  }
 }

@@ -5,6 +5,9 @@
  * Fallback: Mistral (deep reasoning)
  * Fallback: FAQ BDD locale
  */
+error_reporting(0);
+ini_set('display_errors', '0');
+
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
@@ -110,7 +113,6 @@ function callGroq($key, $messages) {
     ]);
     $res = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
     if ($code === 200 && $res) {
         $data = json_decode($res, true);
         return $data['choices'][0]['message']['content'] ?? null;
@@ -129,7 +131,6 @@ function callMistral($key, $messages) {
     ]);
     $res = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
     if ($code === 200 && $res) {
         $data = json_decode($res, true);
         return $data['choices'][0]['message']['content'] ?? null;
