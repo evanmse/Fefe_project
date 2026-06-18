@@ -15,6 +15,7 @@ import { OverviewView } from '~/components/ferrari/views/OverviewView'
 import { ArchitectureView } from '~/components/ferrari/views/ArchitectureView'
 import { TelemetryView } from '~/components/ferrari/views/TelemetryView'
 import { SimulatorsView } from '~/components/ferrari/views/SimulatorsView'
+import { IoTView } from '~/components/ferrari/views/IoTView'
 import { DataWaterfall } from '~/components/ferrari/DataWaterfall'
 import { Chatbot } from '~/components/ferrari/Chatbot'
 import topdown from '~/assets/dashboard-car-topdown.png'
@@ -87,6 +88,7 @@ function Cockpit() {
       content: <TelemetryView setup={setup} aero={aero} live={live} />,
     },
     { id: 'simulators', label: 'Simulators', content: <SimulatorsView /> },
+    { id: 'iot', label: 'IoT Devices', content: <IoTView /> },
   ]
 
   return (

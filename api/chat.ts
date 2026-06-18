@@ -44,7 +44,8 @@ Tu aides les ingénieurs avec la télémétrie, le LiDAR, le setup, l'aérodynam
 
 function getClientIp(req: VercelRequest): string {
   const fwd = req.headers["x-forwarded-for"];
-  return Array.isArray(fwd) ? fwd[0] : fwd || req.headers["x-real-ip"] || "unknown";
+  const realIp = req.headers["x-real-ip"];
+  return Array.isArray(fwd) ? fwd[0] : (typeof fwd === "string" ? fwd : (typeof realIp === "string" ? realIp : "unknown"));
 }
 
 function rateLimit(key: string, max: number, windowMs: number): { allowed: boolean; remaining: number } {
