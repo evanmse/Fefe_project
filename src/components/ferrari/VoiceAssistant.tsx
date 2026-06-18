@@ -48,29 +48,25 @@ export function VoiceAssistant({ onTranscript, onSpeak, enabled = false, mode = 
     rec.interimResults = true
     rec.maxAlternatives = 1
 
+    // Flag pour éviter double onend en mode wake
+    let stoppedManually = false
+
     rec.onresult = (event: any) => {
       if (modeRef.current === 'wake') {
-        // Accumuler tous les nouveaux résultats
-        let transcript = ''
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript
+        // Mode wake : accumuler les résultats de CETTE reconnaissance
+        let final = ''
+        let interim = ''
+        for (let i = 0; i < event.results.length; i++) {
+          const r = event.results[i]
+          if (r.isFinal) final += r[0].transcript
+          else interim += r[0].transcript
         }
-        const lower = transcript.toLowerCase().trim()
-        const isFinal = event.results[event.results.length - 1]?.isFinal
 
-        if (wakeActiveRef.current) {
-          // État WAKING : on attend la question après "Ferrari"
-          setInterimText('🎤 ' + transcript)
-          if (isFinal && transcript.trim()) {
-            // Question capturée → envoi
-            setWakeActive(false)
-            wakeActiveRef.current = false
-            setInterimText('')
-            playChime()
-            onTranscript(transcript.trim())
-          }
-        } else {
-          // État IDLE : on cherche le mot-clé "Ferrari"
+        if (final) {
+          const lower = final.toLowerCase().trim()
+          setInterimText('')
+
+          // Chercher le mot-clé
           const wakeIdx = WAKE_WORDS.reduce((found, word) => {
             const idx = lower.indexOf(word)
             return idx >= 0 && (found === -1 || idx < found) ? idx : found
@@ -78,31 +74,37 @@ export function VoiceAssistant({ onTranscript, onSpeak, enabled = false, mode = 
 
           if (wakeIdx >= 0) {
             const matchedWord = WAKE_WORDS.find(w => lower.includes(w)) || 'ferrari'
-            const afterWake = transcript.slice(wakeIdx + matchedWord.length).trim()
-            if (afterWake && isFinal) {
-              // "Ferrari + question" d'un coup → envoi direct
-              setWakeActive(false)
-              wakeActiveRef.current = false
-              setInterimText('')
+            const afterWake = final.slice(wakeIdx + matchedWord.length).trim()
+            stopAndRestart(rec)
+            if (afterWake) {
+              // "Ferrari quelle est la météo" → envoi direct
               playChime()
               onTranscript(afterWake)
-            } else if (isFinal) {
-              // Juste "Ferrari" → on attend la question
-              setWakeActive(true)
-              wakeActiveRef.current = true
-              setInterimText('Je t\'écoute…')
             } else {
-              setInterimText('👂 ' + transcript)
+              // Juste "Ferrari" → attendre la question
+              playChime()
+              sayListening() // "Je t'écoute"
+              waitForQuestion(rec)
             }
+          } else if (wakeActiveRef.current) {
+            // On était en attente de question → envoi
+            wakeActiveRef.current = false
+            setWakeActive(false)
+            stopAndRestart(rec)
+            playChime()
+            onTranscript(final.trim())
           } else {
-            setInterimText('👂 ' + transcript)
+            // Pas de mot-clé → redémarrer
+            stopAndRestart(rec)
           }
+        } else if (interim) {
+          setInterimText(wakeActiveRef.current ? '🎤 ' + interim : '👂 ' + interim)
         }
       } else {
         // Mode manuel
         let final = ''
         let interim = ''
-        for (let i = event.resultIndex; i < event.results.length; i++) {
+        for (let i = 0; i < event.results.length; i++) {
           const r = event.results[i]
           if (r.isFinal) final += r[0].transcript
           else interim += r[0].transcript
@@ -122,21 +124,65 @@ export function VoiceAssistant({ onTranscript, onSpeak, enabled = false, mode = 
         setSupported(false)
       }
       setIsListening(false)
+      stoppedManually = true
       if (modeRef.current === 'wake' && event.error !== 'not-allowed') {
-        wakeRestartRef.current = setTimeout(() => {
-          try { rec.start(); setIsListening(true) } catch {}
-        }, 1000)
+        setTimeout(() => restartRec(rec), 1000)
       }
     }
 
     rec.onend = () => {
+      if (stoppedManually) {
+        stoppedManually = false
+        return
+      }
+      // En mode wake, si onend est appelé naturellement (timeout, silence),
+      // on redémarre car on veut une écoute continue
       if (modeRef.current === 'wake' && enabledRef.current) {
-        wakeRestartRef.current = setTimeout(() => {
-          try { rec.start(); setIsListening(true) } catch {}
-        }, 250)
+        setIsListening(true)
+        setTimeout(() => restartRec(rec), 300)
       } else {
         setIsListening(false)
       }
+    }
+
+    // Helpers
+    function stopAndRestart(r: any) {
+      stoppedManually = true
+      try { r.stop() } catch {}
+      wakeRestartRef.current = setTimeout(() => {
+        stoppedManually = false
+        restartRec(r)
+      }, 500)
+    }
+
+    function restartRec(r: any) {
+      if (modeRef.current !== 'wake' || !enabledRef.current) return
+      try { r.start(); setIsListening(true) } catch (e) {
+        // Réessayer après un délai
+        setTimeout(() => {
+          try { r.start(); setIsListening(true) } catch {}
+        }, 1000)
+      }
+    }
+
+    function sayListening() {
+      try {
+        if ('speechSynthesis' in window) {
+          const u = new SpeechSynthesisUtterance('Je t\'écoute')
+          u.lang = 'fr-FR'
+          u.rate = 1.2
+          u.volume = 0.8
+          window.speechSynthesis.cancel()
+          window.speechSynthesis.speak(u)
+        }
+      } catch {}
+    }
+
+    function waitForQuestion(r: any) {
+      wakeActiveRef.current = true
+      setWakeActive(true)
+      setInterimText('Je t\'écoute…')
+      // La reconnaissance est déjà redémarrée par stopAndRestart
     }
 
     recognitionRef.current = rec
@@ -146,6 +192,7 @@ export function VoiceAssistant({ onTranscript, onSpeak, enabled = false, mode = 
     }
 
     return () => {
+      stoppedManually = true
       if (wakeRestartRef.current) clearTimeout(wakeRestartRef.current)
       try { rec.stop() } catch {}
     }
