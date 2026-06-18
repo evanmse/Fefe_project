@@ -26,11 +26,7 @@ export function BuzzerControl() {
     setLoading(cmd)
     setFeedback(null)
     try {
-      const res = await fetch(`${API_BASE}/api/db_actuators`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'buzzer', cmd }),
-      })
+      const res = await fetch(`/api/db_api.php?action=buzzer&cmd=${encodeURIComponent(cmd)}&source=dashboard`)
       const json = await res.json()
       if (json.success) {
         setLastCmd(cmd)
@@ -38,9 +34,8 @@ export function BuzzerControl() {
       } else {
         setFeedback({ ok: false, msg: json.error || 'Erreur' })
       }
-    } catch {
-      setFeedback({ ok: false, msg: 'Serveur inaccessible — mode démo actif' })
-      setLastCmd(cmd)
+    } catch (e) {
+      setFeedback({ ok: false, msg: `PHP indisponible — lance php -S localhost:8080` })
     } finally {
       setLoading(null)
     }

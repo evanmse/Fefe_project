@@ -9,7 +9,8 @@ interface LidarRow {
 // Calibration points G2D
 const CALIBRATION = { adc: [123, 854, 1007], lux: [6, 121, 2150] };
 
-const API_BASE = ''
+// API PHP locale (proxied by Vite to php -S localhost:8080)
+const API = '/api/db_api.php'
 
 function demo(n: number): LidarRow[] {
   const now = Date.now()
@@ -22,7 +23,7 @@ export function G2DLidarView() {
   const [loading, setLoading] = useState(true)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  const fetchD = useCallback(async()=>{try{const r=await window.fetch(`${API_BASE}/api/db_sensors?action=lidar_g2d&limit=50`);const j=await r.json();if(j.success&&j.data?.length){setData(j.data);setLatest(j.data[0])}}catch{const d=demo(50);setData(d);setLatest(d[0])}finally{setLoading(false)}},[])
+  const fetchD = useCallback(async()=>{try{const r=await window.fetch(`/api/db_api.php?action=lidar_g2d&limit=50`);const j=await r.json();if(j.success&&j.data?.length){setData(j.data);setLatest(j.data[0])}}catch{const d=demo(50);setData(d);setLatest(d[0])}finally{setLoading(false)}},[])
   useEffect(()=>{fetchD();const iv=setInterval(fetchD,3000);return()=>clearInterval(iv)},[fetchD])
 
   useEffect(()=>{

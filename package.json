@@ -6,6 +6,7 @@
   "description": "Scuderia Ferrari · LiDAR Ride Height — vitrine publique + cockpit ingénieur",
   "scripts": {
     "dev": "vite dev --port 3000",
+    "dev:php": "php -S localhost:8080 & vite dev --port 3000; kill %1 2>/dev/null",
     "build": "vite build",
     "start": "node .output/server/index.mjs",
     "serve": "vite preview",

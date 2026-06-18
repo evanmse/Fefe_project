@@ -38,7 +38,7 @@ export function IoTDashboard() {
 
   const fetchData = useCallback(async () => {
     try {
-      const r = await window.fetch(`${API_BASE}/api/db_sensors?action=sensors`)
+      const r = await window.fetch(`/api/db_api.php?action=sensors`)
       const j = await r.json()
       if (j.success && j.data?.length) { setGroups(j.data); return }
     } catch { /* fallback demo */ }
@@ -47,7 +47,7 @@ export function IoTDashboard() {
 
   const fetchHist = useCallback(async (g:string, t:string) => {
     try {
-      const r = await window.fetch(`${API_BASE}/api/db_sensors?action=sensor_history&groupe=${g}&type=${t}&limit=30`)
+      const r = await window.fetch(`/api/db_api.php?action=sensor_history&groupe=${g}&type=${t}&limit=30`)
       const j = await r.json()
       if (j.success && j.data?.length) { setHistory(j.data); return }
     } catch { /* demo */ }

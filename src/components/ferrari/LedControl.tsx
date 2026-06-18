@@ -22,7 +22,7 @@ export function LedControl() {
 
   const fetchLeds = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/db_sensors?action=leds`)
+      const res = await fetch(`/api/db_api.php?action=leds`)
       const json = await res.json()
       if (json.success && json.data) {
         const states: Record<string, number> = {}
@@ -48,11 +48,7 @@ export function LedControl() {
     setLoading(groupe)
 
     try {
-      const res = await fetch(`${API_BASE}/api/db_actuators`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'led', groupe, state: newState }),
-      })
+      const res = await fetch(`/api/db_api.php?action=led&state=${newState}`)
       const json = await res.json()
       if (json.success) {
         setLeds(prev => ({ ...prev, [groupe]: newState }))

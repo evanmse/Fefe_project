@@ -10,7 +10,7 @@ export function DataWaterfall({ rows = 14 }: { rows?: number }) {
   const iv = useRef<ReturnType<typeof setInterval>|undefined>(undefined)
 
   const fetch = useCallback(async()=>{
-    try{const r=await window.fetch(`/api/db_sensors?action=lidar_g2d&limit=${rows}`);const j=await r.json();if(j.success&&j.data?.length){setData(j.data);setConnected(true);return}}catch{}
+    try{const r=await window.fetch(`/api/db_api.php?action=lidar_g2d&limit=${rows}`);const j=await r.json();if(j.success&&j.data?.length){setData(j.data);setConnected(true);return}}catch{}
     setConnected(false)
   },[rows])
 
