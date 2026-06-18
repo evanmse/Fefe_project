@@ -2,9 +2,12 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { StatusPill, SectionHeader } from './atoms'
 
 interface LidarRow {
-  id: number; distance_mm: number; luminosite: number
+  id: number; distance_mm: number; luminosite: number; adc_raw?: number
   angle_deg: number; reflectivite: number | null; status: string; date_mesure: string
 }
+
+// Calibration points G2D
+const CALIBRATION = { adc: [123, 854, 1007], lux: [6, 121, 2150] };
 
 const API_BASE = ''
 
