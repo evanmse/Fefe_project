@@ -4,8 +4,26 @@ import { VoiceAssistant, speakText } from './VoiceAssistant'
 
 interface Msg { from: 'eng' | 'user'; text: string }
 
-const FALLBACK = "Je suis l'assistant ingénieur de piste. Demande-moi la garde au sol, l'appui aéro, le rake ou le fonctionnement des LiDAR."
-const WELCOME = 'Box, box. Ici le mur des stands — pose ta question setup ou LiDAR. Micro 🎤 disponible !'
+const WELCOME = 'Box, box. Ici le mur des stands — pose ta question !'
+const FALLBACK = `Voici ce que je peux t'expliquer :
+• Garde au sol idéale : 20-40 mm
+• Rake optimal : +1.0°
+• LiDAR scanne à 100 Hz (résolution 0.1 mm)
+• Capteurs IoT : température, humidité, luminosité
+• Buzzer G2E : PIT_STOP, SAFETY_CAR, RELEASE, HOLD, EMERGENCY`
+
+function localAnswer(q: string): string {
+  const ql = q.toLowerCase()
+  if (ql.includes('lidar') || ql.includes('capteur')) return '🔬 Le LiDAR G2D mesure la luminosité (0-2150 lux) et la distance. Calibration : ADC 123→6lx, 854→121lx, 1007→2150lx. La détection hors-piste se fait par réflectivité > 80% (bande blanche).'
+  if (ql.includes('buzzer') || ql.includes('sonner')) return '🔊 Le buzzer G2E accepte 7 commandes : BUZZER_PIT_STOP, BUZZER_SAFETY_CAR, BUZZER_RELEASE, BUZZER_HOLD, BUZZER_EMERGENCY, BUZZER_TEST, BUZZER_OFF. Pour le déclencher, crée une entrée dans commande_buzzer_g2e.'
+  if (ql.includes('led') || ql.includes('lumière')) return '💡 Les LEDs sont contrôlées via la table leds_g2c. Change l\'état (0=OFF, 1=ON) pour allumer/éteindre.'
+  if (ql.includes('temperature') || ql.includes('température') || ql.includes('chaud')) return '🌡️ Les capteurs de température sont dans la table Mesure (groupes g2c, g2e) et G2B. Actuellement : g2c=30°C, g2e=57°C, g2b=22°C.'
+  if (ql.includes('humidité') || ql.includes('humidite')) return '💧 Les capteurs d\'humidité sont dans Mesure et G2B. Actuellement : g2c=47%, g2b=38%.'
+  if (ql.includes('garde au sol') || ql.includes('ride height')) return '🏎️ La garde au sol (ride height) idéale se situe entre 20-40 mm. Trop bas → décrochage de plancher (CRITICAL). Le LiDAR mesure la hauteur en continu à 100 Hz.'
+  if (ql.includes('rake') || ql.includes('assiette')) return '📐 Le rake (assiette) est la différence de hauteur AV/AR. Optimal ≈ +1.0°. Un mauvais rake dégrade l\'appui aéro.'
+  if (ql.includes('downforce') || ql.includes('appui')) return '🪽 L\'appui aéro (downforce) dépend de l\'effet de sol et du rake. Maximum ~1100 kg. La balance avant idéale est ~50%.'
+  return ''
+}
 
 export function Chatbot() {
   const [open, setOpen] = useState(false)
@@ -23,29 +41,36 @@ export function Chatbot() {
 
   const sendMessage = useCallback(async (q: string) => {
     if (!q.trim()) return
-    setMessages((m) => [...m, { from: 'user', text: q.trim() }])
+    const query = q.trim()
+    setMessages((m) => [...m, { from: 'user', text: query }])
     setInput('')
     setLoading(true)
+
+    let answer = ''
+
+    // 1. Essayer Mistral (/api/chat)
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: q.trim(),
-          history: messages.slice(-6).map((m) => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text })),
-        }),
-      })
-      if (!res.ok) { const e = await res.json().catch(() => ({ error: 'API error' })); throw new Error(e.error || `HTTP ${res.status}`) }
-      interface ApiOk { reply: string }
-      const data = await res.json() as ApiOk
-      const answer = data.reply || FALLBACK
-      setMessages((m) => [...m, { from: 'eng', text: answer }])
-      if (voiceEnabled) speakText(answer)
-    } catch (err) {
-      console.error('Chat error:', err)
-      const msg = err instanceof Error ? err.message : 'Erreur inconnue'
-      setMessages((m) => [...m, { from: 'eng', text: `⚠️ ${msg}. ${FALLBACK}` }])
-    } finally { setLoading(false) }
+      const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: query, history: messages.slice(-6).map(m => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text })) }) })
+      if (res.ok) { const d = await res.json(); if (d.reply) answer = d.reply }
+    } catch {}
+
+    // 2. Fallback: FAQ BDD
+    if (!answer) {
+      try {
+        const faqRes = await fetch(`/api/db_api.php?action=faq&q=${encodeURIComponent(query)}`)
+        if (faqRes.ok) { const d = await faqRes.json(); if (d.success && d.data?.length) { answer = d.data.map((r:any,i:number) => `📌 **${r.question}**\n${r.answer}`).join('\n\n---\n\n') } }
+      } catch {}
+    }
+
+    // 3. Fallback: réponse locale
+    if (!answer) {
+      answer = localAnswer(query)
+      if (!answer) answer = `🤖 ${FALLBACK}`
+    }
+
+    setMessages((m) => [...m, { from: 'eng', text: answer }])
+    if (voiceEnabled) speakText(answer)
+    setLoading(false)
   }, [messages, voiceEnabled])
 
   const handleSend = useCallback(() => { if (input.trim() && !loading) sendMessage(input) }, [input, loading, sendMessage])
