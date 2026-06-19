@@ -82,7 +82,7 @@ capteur photosensible réel.
 | Élément | Comportement |
 |---------|--------------|
 | 🏎️ Voiture LEC | Tourne **en continu** sur le tracé (animation calée sur l'horloge), jamais bloquée même si un franchissement est manqué |
-| ⏱️ Comptage des tours | Piloté par le **capteur réel** : un tour est validé quand le passage de ligne survient après `MIN_LAP_MS` (40 % du temps de référence) |
+| ⏱️ Comptage des tours | Piloté par le **capteur réel** : chaque passage de ligne détecté par le pont compte un tour (1ᵉʳ passage = départ du chrono, passages suivants = tours bouclés) |
 | ⚠️ Hors-piste | Quand un capteur de limite est franchi, la voiture **ralentit** (40 % de sa vitesse) sans s'arrêter, et l'indicateur passe au rouge |
 | 🔊 Buzzer | Bip physique à chaque tour bouclé |
 | 🟢 Flash de ligne | Cercle vert à chaque franchissement détecté |

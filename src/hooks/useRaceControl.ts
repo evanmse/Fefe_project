@@ -8,23 +8,27 @@ import { useCallback, useEffect, useRef, useState } from 'react'
    passage de la ligne blanche (pic de luminosité). Ce hook lit la
    dernière mesure et reconstruit l'état de course côté cockpit.
 
-   Logique de tour (plage de validation) :
+   Logique de tour :
    - 1er passage devant la ligne → tour 1 lancé, chrono démarre.
-   - passage suivant AVANT MIN_LAP_MS → encore dans le tour :
-       simple franchissement de ligne (flash), AUCUN tour compté.
-   - passage suivant DANS la plage [MIN_LAP_MS … ] → tour bouclé :
-       on enregistre le temps, on relance le chrono et on BUZZ.
+   - chaque passage suivant → tour bouclé : on enregistre le temps,
+       on relance le chrono et on BUZZ.
+
+   La détection d'un passage (et son anti-rebond réel) est faite en
+   amont par le pont scripts/lidar_ingest.py : hystérésis sur la
+   réflectivité + délai anti-rebond (~0,8 s). Deux incréments de `tour`
+   sont donc toujours espacés d'un vrai passage distinct. Le hook se
+   contente de chronométrer ; il n'a pas à re-valider une durée mini
+   « réaliste » (c'était la cause des tours non comptés en démo).
    ============================================================ */
 
-/** Temps de référence d'un tour du circuit (ms). */
+/** Temps de référence d'un tour du circuit (ms), pour colorer l'écart. */
 export const TEMPS_REF_MS = 8000
 
-/** Durée minimale d'un tour valide (ms). En-dessous, un nouveau
- *  passage est considéré comme un simple franchissement de ligne
- *  (le pilote est « encore dans le tour »), pas comme un tour bouclé.
- *  Calé sur 40 % du temps de référence : reste cohérent si on change
- *  TEMPS_REF_MS, et laisse une marge anti-rebond réaliste. */
-export const MIN_LAP_MS = Math.round(TEMPS_REF_MS * 0.4)
+/** Garde-fou anti-doublon (ms). L'anti-rebond métier est dans le pont
+ *  capteur ; cette valeur ne sert qu'à absorber un éventuel jitter de
+ *  polling et reste bien sous l'anti-rebond du pont, pour ne JAMAIS
+ *  rejeter un passage réellement détecté. */
+export const MIN_LAP_MS = 250
 
 export interface LapRecord {
   lap: number
@@ -146,15 +150,16 @@ export function useRaceControl(): RaceState {
       } else {
         const elapsed = now - lapStartTs
         if (elapsed >= MIN_LAP_MS) {
-          // Passage dans la plage valide → tour bouclé.
+          // Passage distinct → tour bouclé (l'anti-rebond métier est
+          // déjà assuré par le pont capteur, cf. en-tête du fichier).
           laps = [{ lap: currentLap, ms: elapsed }, ...laps].slice(0, 30)
           bestMs = bestMs == null ? elapsed : Math.min(bestMs, elapsed)
           currentLap += 1
           lapStartTs = now
           shouldBuzz = true
         }
-        // Sinon (elapsed < MIN_LAP_MS) : encore dans le tour → simple
-        // franchissement de ligne, on ne compte PAS de tour supplémentaire.
+        // Sinon (elapsed < MIN_LAP_MS) : doublon de polling improbable,
+        // ignoré pour ne pas compter deux fois le même passage.
       }
     }
 
