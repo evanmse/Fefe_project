@@ -42,15 +42,22 @@ try {
       echo json_encode(['success'=>true,'commands'=>$cmds,'state'=>$state]);
       break;
     case 'leds':
-      $s = $bdd->query('SELECT * FROM leds_g2c ORDER BY id DESC LIMIT 1')->fetch();
-      echo json_encode(['success'=>true,'data'=>$s ? ['leds_g2c'=>$s] : []]);
+      $s = $bdd->query('SELECT * FROM leds_g2c ORDER BY id DESC LIMIT 10')->fetchAll();
+      // Grouper par groupe pour n'avoir que le dernier état de chaque
+      $states = [];
+      foreach ($s as $row) {
+        $g = $row['groupe'] ?? 'g2c';
+        if (!isset($states[$g])) $states[$g] = $row;
+      }
+      echo json_encode(['success'=>true,'data'=>$states ?: [],'count'=>count($states)]);
       break;
     case 'led':
       $etat = intval($_GET['state']??$_POST['state']??'0');
+      $groupe = $_GET['groupe'] ?? $_POST['groupe'] ?? 'g2c';
       if (!in_array($etat,[0,1])) { echo json_encode(['success'=>false,'error'=>'state 0/1 requis']); break; }
-      $stmt = $bdd->prepare('INSERT INTO leds_g2c (etat,updated_at) VALUES (:etat,NOW())');
-      $stmt->execute(['etat'=>$etat]);
-      echo json_encode(['success'=>true,'message'=>'LED g2c '.($etat?'ON':'OFF'),'etat'=>$etat,'id'=>$bdd->lastInsertId()]);
+      $stmt = $bdd->prepare('INSERT INTO leds_g2c (groupe, etat, updated_at) VALUES (:groupe, :etat, NOW())');
+      $stmt->execute(['groupe'=>$groupe, 'etat'=>$etat]);
+      echo json_encode(['success'=>true,'message'=>"LED $groupe ".($etat?'ON':'OFF'),'groupe'=>$groupe,'etat'=>$etat,'id'=>$bdd->lastInsertId()]);
       break;
     case 'lidar_g2d':
       $limit = min(200, intval($_GET['limit'] ?? 50));
