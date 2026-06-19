@@ -35,7 +35,7 @@ export function BuzzerControl() {
         setFeedback({ ok: false, msg: json.error || 'Erreur' })
       }
     } catch (e) {
-      setFeedback({ ok: false, msg: `PHP indisponible — lance php -S localhost:8080` })
+      setFeedback({ ok: false, msg: `Erreur réseau — le serveur PHP est-il lancé ? (npm run dev:php)` })
     } finally {
       setLoading(null)
     }
