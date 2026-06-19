@@ -42,6 +42,12 @@ export function LedControl() {
 
   useEffect(() => { fetchLeds() }, [fetchLeds])
 
+  // Polling DB toutes les 2s pour avoir l'état réel des LEDs
+  useEffect(() => {
+    const interval = setInterval(fetchLeds, 2000)
+    return () => clearInterval(interval)
+  }, [fetchLeds])
+
   const toggleLed = async (groupe: string) => {
     const current = leds[groupe] ?? 0
     const newState = current === 1 ? 0 : 1

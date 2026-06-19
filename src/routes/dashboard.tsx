@@ -146,14 +146,6 @@ function CockpitHeader({
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
-          <span className="badge-live">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#00ff41] animate-pulse-dot" />
-            LIVE · {live.speed.toFixed(0)} km/h
-          </span>
-          <span className="badge-live text-[#ffb800]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#ffb800]" />
-            {(live.rpm / 1000).toFixed(1)}k tr/min
-          </span>
           <StatusPill status={status} />
           <button
             onClick={toggle}
@@ -189,14 +181,8 @@ function CockpitHero({ live }: { live: LiveTelemetry }) {
           Télémétrie temps réel
         </h1>
         <p className="max-w-xl text-sm text-[#bdbdbd]">
-          Réglez le setup, surveillez la garde au sol mesurée au LiDAR et l'appui
-          aéro qui en découle. Données rafraîchies toutes les 200 ms.
+          Pilotez les actionneurs IoT, le buzzer G2E et les LEDs des groupes distants. Données enregistrées en base MySQL.
         </p>
-        <div className="mt-2 flex gap-6">
-          <HeroMini label="Garde au sol AV" value={`${live.rhFront.toFixed(1)} mm`} />
-          <HeroMini label="Garde au sol AR" value={`${live.rhRear.toFixed(1)} mm`} />
-          <HeroMini label="Appui" value={`${live.downforce.toFixed(0)} kg`} />
-        </div>
       </div>
     </section>
   )
