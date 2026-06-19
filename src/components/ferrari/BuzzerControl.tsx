@@ -1,18 +1,18 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 
 /* ============================================================
    BuzzerControl.tsx — Panneau de commande du buzzer g2e
-   Mode hybride : API PHP (si dispo) + fallback local audio
+   INSERT dans commande_buzzer_g2e → le device G2E poll et buzz
    ============================================================ */
 
 const BUZZER_COMMANDS = [
-  { cmd: 'BUZZER_PIT_STOP', label: '🏁 PIT STOP', desc: 'Arrêt stands', color: '#ffb800', hz: 600 },
-  { cmd: 'BUZZER_SAFETY_CAR', label: '🚨 SAFETY CAR', desc: 'Safety Car', color: '#ffb800', hz: 400 },
-  { cmd: 'BUZZER_RELEASE', label: '🟢 RELEASE', desc: 'Libération', color: '#00ff41', hz: 800 },
-  { cmd: 'BUZZER_HOLD', label: '🔴 HOLD', desc: 'Maintien', color: '#dc0000', hz: 300 },
-  { cmd: 'BUZZER_EMERGENCY', label: '⚠️ EMERGENCY', desc: 'Urgence', color: '#dc0000', hz: 200 },
-  { cmd: 'BUZZER_TEST', label: '🔧 TEST', desc: 'Test buzz', color: '#3b82f6', hz: 1000 },
-  { cmd: 'BUZZER_OFF', label: '⏹️ OFF', desc: 'Arrêt', color: '#8a8a8a', hz: 0 },
+  { cmd: 'BUZZER_PIT_STOP', label: '🏁 PIT STOP', desc: 'Arrêt stands', color: '#ffb800' },
+  { cmd: 'BUZZER_SAFETY_CAR', label: '🚨 SAFETY CAR', desc: 'Safety Car', color: '#ffb800' },
+  { cmd: 'BUZZER_RELEASE', label: '🟢 RELEASE', desc: 'Libération', color: '#00ff41' },
+  { cmd: 'BUZZER_HOLD', label: '🔴 HOLD', desc: 'Maintien', color: '#dc0000' },
+  { cmd: 'BUZZER_EMERGENCY', label: '⚠️ EMERGENCY', desc: 'Urgence', color: '#dc0000' },
+  { cmd: 'BUZZER_TEST', label: '🔧 TEST', desc: 'Test buzz', color: '#3b82f6' },
+  { cmd: 'BUZZER_OFF', label: '⏹️ OFF', desc: 'Arrêt', color: '#8a8a8a' },
 ]
 
 export function BuzzerControl() {
@@ -20,9 +20,8 @@ export function BuzzerControl() {
   const [loading, setLoading] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null)
   const [phpAvailable, setPhpAvailable] = useState<boolean | null>(null)
-  const audioCtxRef = useRef<AudioContext | null>(null)
 
-  // Vérifier si l'API PHP est accessible au montage
+  // Vérifier si l'API PHP est accessible
   useEffect(() => {
     fetch('/api/db_api.php?action=buzzer_status')
       .then(r => r.json())
@@ -30,59 +29,35 @@ export function BuzzerControl() {
       .catch(() => setPhpAvailable(false))
   }, [])
 
-  // Jouer un son local (Web Audio API) comme retour immédiat
-  const playLocalBeep = useCallback((hz: number, duration = 300) => {
-    try {
-      if (!audioCtxRef.current) audioCtxRef.current = new AudioContext()
-      const ctx = audioCtxRef.current
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.type = 'square'
-      osc.frequency.setValueAtTime(hz, ctx.currentTime)
-      gain.gain.setValueAtTime(0.2, ctx.currentTime)
-      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duration / 1000)
-      osc.start(ctx.currentTime)
-      osc.stop(ctx.currentTime + duration / 1000)
-    } catch {}
-  }, [])
-
-  const sendCommand = useCallback(async (cmd: string, hz: number) => {
+  const sendCommand = useCallback(async (cmd: string) => {
     setLoading(cmd)
     setFeedback(null)
 
-    // Toujours jouer le son local immédiatement (feedback instantané)
-    if (hz > 0) playLocalBeep(hz, 400)
-
-    // Essayer l'API PHP
     try {
       const res = await fetch(`/api/db_api.php?action=buzzer&cmd=${encodeURIComponent(cmd)}&source=dashboard`)
       const json = await res.json()
       if (json.success) {
         setLastCmd(cmd)
         setPhpAvailable(true)
-        setFeedback({ ok: true, msg: `✅ ${json.message || cmd} — enregistré en base` })
+        setFeedback({ ok: true, msg: `✅ ${cmd.replace('BUZZER_', '')} → inséré en base. Le device G2E va buzzer.` })
       } else {
-        setFeedback({ ok: true, msg: `⚠️ ${json.error || 'Erreur API'} — mais le son local a été joué` })
+        setFeedback({ ok: false, msg: `❌ ${json.error || 'Erreur API'}` })
       }
     } catch {
-      // Mode offline : le son a déjà été joué, on confirme juste
       setPhpAvailable(false)
-      setLastCmd(cmd)
-      setFeedback({ ok: true, msg: `🔊 ${cmd.replace('BUZZER_', '')} joué en local (PHP hors-ligne)` })
+      setFeedback({ ok: false, msg: '❌ API PHP inaccessible — lance npm run dev:php' })
     } finally {
       setLoading(null)
-      setTimeout(() => setFeedback(null), 3000)
+      setTimeout(() => setFeedback(null), 4000)
     }
-  }, [playLocalBeep])
+  }, [])
 
   return (
     <div className="panel p-5 flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <span className="badge-live text-[#ffb800]">
-          <span className={`h-1.5 w-1.5 rounded-full animate-pulse-dot ${phpAvailable ? 'bg-[#ffb800]' : 'bg-[#8a8a8a]'}`} />
-          Contrôle Buzzer · G2E {phpAvailable === false && '(mode local)'}
+          <span className={`h-1.5 w-1.5 rounded-full animate-pulse-dot ${phpAvailable ? 'bg-[#ffb800]' : 'bg-[#dc0000]'}`} />
+          Contrôle Buzzer · G2E {phpAvailable === false && '⚠️ PHP offline'}
         </span>
         {lastCmd && (
           <span className="label-mono text-[#00ff41]">
@@ -92,10 +67,10 @@ export function BuzzerControl() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {BUZZER_COMMANDS.map(({ cmd, label, desc, color, hz }) => (
+        {BUZZER_COMMANDS.map(({ cmd, label, desc, color }) => (
           <button
             key={cmd}
-            onClick={() => sendCommand(cmd, hz)}
+            onClick={() => sendCommand(cmd)}
             disabled={loading !== null}
             className="panel p-3 flex flex-col items-center gap-1.5 text-center transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
