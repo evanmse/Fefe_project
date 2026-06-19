@@ -8,7 +8,7 @@ const WELCOME = 'Box, box. Ici le mur des stands — pose ta question !'
 const FALLBACK = `Voici ce que je peux t'expliquer :
 • Garde au sol idéale : 20-40 mm
 • Rake optimal : +1.0°
-• LiDAR scanne à 100 Hz (résolution 0.1 mm)
+• Photosensible scanne à 100 Hz (résolution 0.1 mm)
 • Capteurs IoT : température, humidité, luminosité
 • Buzzer G2E : PIT_STOP, SAFETY_CAR, RELEASE, HOLD, EMERGENCY`
 
@@ -53,12 +53,12 @@ function renderMarkdown(text: string): string {
 
 function localAnswer(q: string): string {
   const ql = q.toLowerCase()
-  if (ql.includes('lidar') || ql.includes('capteur')) return '🔬 Le LiDAR G2D mesure la luminosité (0-2150 lux) et la distance. Calibration : ADC 123→6lx, 854→121lx, 1007→2150lx. La détection hors-piste se fait par réflectivité > 80% (bande blanche).'
+  if (ql.includes('lidar') || ql.includes('capteur')) return '🔬 Le Photosensible G2D mesure la luminosité (0-2150 lux) et la distance. Calibration : ADC 123→6lx, 854→121lx, 1007→2150lx. La détection hors-piste se fait par réflectivité > 80% (bande blanche).'
   if (ql.includes('buzzer') || ql.includes('sonner')) return '🔊 Le buzzer G2E accepte 7 commandes : BUZZER_PIT_STOP, BUZZER_SAFETY_CAR, BUZZER_RELEASE, BUZZER_HOLD, BUZZER_EMERGENCY, BUZZER_TEST, BUZZER_OFF. Pour le déclencher, crée une entrée dans commande_buzzer_g2e.'
   if (ql.includes('led') || ql.includes('lumière')) return '💡 Les LEDs sont contrôlées via la table leds_g2c. Change l\'état (0=OFF, 1=ON) pour allumer/éteindre.'
   if (ql.includes('temperature') || ql.includes('température') || ql.includes('chaud')) return '🌡️ Les capteurs de température sont dans la table Mesure (groupes g2c, g2e) et G2B. Actuellement : g2c=30°C, g2e=57°C, g2b=22°C.'
   if (ql.includes('humidité') || ql.includes('humidite')) return '💧 Les capteurs d\'humidité sont dans Mesure et G2B. Actuellement : g2c=47%, g2b=38%.'
-  if (ql.includes('garde au sol') || ql.includes('ride height')) return '🏎️ La garde au sol (ride height) idéale se situe entre 20-40 mm. Trop bas → décrochage de plancher (CRITICAL). Le LiDAR mesure la hauteur en continu à 100 Hz.'
+  if (ql.includes('garde au sol') || ql.includes('ride height')) return '🏎️ La garde au sol (ride height) idéale se situe entre 20-40 mm. Trop bas → décrochage de plancher (CRITICAL). Le Photosensible mesure la hauteur en continu à 100 Hz.'
   if (ql.includes('rake') || ql.includes('assiette')) return '📐 Le rake (assiette) est la différence de hauteur AV/AR. Optimal ≈ +1.0°. Un mauvais rake dégrade l\'appui aéro.'
   if (ql.includes('downforce') || ql.includes('appui')) return '🪽 L\'appui aéro (downforce) dépend de l\'effet de sol et du rake. Maximum ~1100 kg. La balance avant idéale est ~50%.'
   return ''

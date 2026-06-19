@@ -188,7 +188,7 @@ export function LidarRawSim() {
   }, [])
 
   return (
-    <SimFrame title="Scan LiDAR brut" tag="RAW POINTS">
+    <SimFrame title="Scan Photosensible brut" tag="RAW POINTS">
       <div className="flex flex-col gap-3">
         <canvas
           ref={canvasRef}

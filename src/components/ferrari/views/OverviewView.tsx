@@ -3,7 +3,7 @@ import type { LiveTelemetry } from '../Dashboard'
 import pitlane from '~/assets/dashboard-car-topdown.png'
 
 /* ============================================================
-   OverviewView — pourquoi le LiDAR + télémétrie résumée.
+   OverviewView — pourquoi le Photosensible + télémétrie résumée.
    ============================================================ */
 
 export function OverviewView({ live }: { live: LiveTelemetry }) {
@@ -11,8 +11,8 @@ export function OverviewView({ live }: { live: LiveTelemetry }) {
     <div className="flex flex-col gap-6">
       <SectionHeader
         index="OVERVIEW"
-        title="Pourquoi mesurer la garde au sol au LiDAR ?"
-        subtitle="La performance aérodynamique d'une F1 moderne dépend de quelques millimètres de garde au sol. Le LiDAR mesure cette hauteur en temps réel, sans contact, à 100 Hz."
+        title="Pourquoi mesurer la garde au sol au Photosensible ?"
+        subtitle="La performance aérodynamique d'une F1 moderne dépend de quelques millimètres de garde au sol. Le Photosensible mesure cette hauteur en temps réel, sans contact, à 100 Hz."
       />
 
       <div className="grid gap-5 lg:grid-cols-3">
@@ -25,7 +25,7 @@ export function OverviewView({ live }: { live: LiveTelemetry }) {
           <div className="grid grid-cols-2 gap-px bg-[#1f1f1f] sm:grid-cols-4">
             <Stat label="Fréquence" value="100" unit="Hz" />
             <Stat label="Résolution" value="0.1" unit="mm" />
-            <Stat label="Capteurs" value="2" unit="LiDAR" />
+            <Stat label="Capteurs" value="2" unit="Photosensible" />
             <Stat label="Latence" value="<5" unit="ms" />
           </div>
         </div>
@@ -33,7 +33,7 @@ export function OverviewView({ live }: { live: LiveTelemetry }) {
         <div className="flex flex-col gap-4">
           <InfoCard eyebrow="EFFET DE SOL" title="Millimètres décisifs">
             Abaisser la voiture de 5 mm peut ajouter plus de 100 kg d'appui — mais
-            trop bas, le plancher décroche et la planche s'use. Le LiDAR garde la
+            trop bas, le plancher décroche et la planche s'use. Le Photosensible garde la
             fenêtre optimale sous contrôle.
           </InfoCard>
           <div className="panel p-5">

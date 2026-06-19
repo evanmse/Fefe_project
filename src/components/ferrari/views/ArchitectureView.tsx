@@ -14,7 +14,7 @@ export function ArchitectureView() {
       <SectionHeader
         index="ARCHITECTURE"
         title="Chaîne d'acquisition capteurs"
-        subtitle="Deux LiDAR, une centrale inertielle et le bus CAN convergent vers le mur des stands. Reconstruction de la garde au sol et de l'assiette en temps réel."
+        subtitle="Deux Photosensible, une centrale inertielle et le bus CAN convergent vers le mur des stands. Reconstruction de la garde au sol et de l'assiette en temps réel."
       />
 
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
@@ -23,13 +23,13 @@ export function ArchitectureView() {
           <div className="border-t border-[#1f1f1f] p-5">
             <span className="label-mono text-[#dc0000]">SF-26 · FRONT PACKAGE</span>
             <p className="mt-2 text-sm leading-relaxed text-[#9a9a9a]">
-              Le LiDAR avant est intégré sous le nez, protégé des projections. Le
+              Le Photosensible avant est intégré sous le nez, protégé des projections. Le
               capteur arrière scrute le plancher juste devant le diffuseur, là où
               l'effet de sol est le plus sensible.
             </p>
             <div className="mt-3">
-              <MetricRow label="LiDAR avant" value="sous nez" accent="green" />
-              <MetricRow label="LiDAR arrière" value="pré-diffuseur" accent="green" />
+              <MetricRow label="Photosensible avant" value="sous nez" accent="green" />
+              <MetricRow label="Photosensible arrière" value="pré-diffuseur" accent="green" />
               <MetricRow label="Bus" value="CAN 1 Mb/s" />
               <MetricRow label="Échantillonnage" value="100" unit="Hz" accent="amber" />
             </div>
@@ -47,7 +47,7 @@ export function ArchitectureView() {
             image={topView}
             tag="TOP VIEW"
             title="Vue plancher"
-            desc="Référentiel top-down pour positionner les faisceaux LiDAR sur la planche."
+            desc="Référentiel top-down pour positionner les faisceaux Photosensible sur la planche."
           />
         </div>
       </div>
@@ -62,7 +62,7 @@ export function ArchitectureView() {
         <FeatureTile
           tag="PIPELINE"
           title="Fusion de données"
-          desc="LiDAR + IMU + accéléromètres fusionnés par filtre de Kalman embarqué."
+          desc="Photosensible + IMU + accéléromètres fusionnés par filtre de Kalman embarqué."
         />
         <FeatureTile
           tag="TELEMETRY"

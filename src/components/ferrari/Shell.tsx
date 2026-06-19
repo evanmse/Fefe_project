@@ -14,7 +14,7 @@ export interface ShellTab {
 
 export function Shell({
   title = 'Engineering Station',
-  eyebrow = 'SF-26 · LiDAR',
+  eyebrow = 'SF-26 · Photosensible',
   tabs,
 }: {
   title?: string

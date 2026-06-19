@@ -13,7 +13,7 @@ export function SimulatorsView() {
       <SectionHeader
         index="SIMULATORS"
         title="Bancs d'essai temps réel"
-        subtitle="Quatre modèles interactifs : groupe propulseur, dérive arrière, scan LiDAR brut et charges G."
+        subtitle="Quatre modèles interactifs : groupe propulseur, dérive arrière, scan Photosensible brut et charges G."
       />
 
       <div className="grid gap-5 sm:grid-cols-2">

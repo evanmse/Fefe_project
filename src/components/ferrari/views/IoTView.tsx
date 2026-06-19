@@ -5,7 +5,7 @@ import { G2DLidarView } from '../G2DLidarView'
 import { SectionHeader } from '../atoms'
 
 /* ============================================================
-   IoTView — Vue complète des dispositifs connectés + G2D LIDAR
+   IoTView — Vue complète des dispositifs connectés + G2D PHOTOSENSIBLE
    ============================================================ */
 
 export function IoTView() {

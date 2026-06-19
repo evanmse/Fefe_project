@@ -11,7 +11,7 @@ import trackBg from '~/assets/vitrine-track-bg.png'
 export const Route = createFileRoute('/')({
   head: () => ({
     meta: [
-      { title: 'Scuderia Ferrari · LiDAR Ride Height' },
+      { title: 'Scuderia Ferrari · Photosensible Ride Height' },
       {
         property: 'og:image',
         content: heroCar,
@@ -61,7 +61,7 @@ function TopNav() {
           <FerrariShield size={36} />
           <div className="leading-none">
             <div className="title-display text-sm">Scuderia Ferrari</div>
-            <div className="label-mono">LiDAR Ride Height</div>
+            <div className="label-mono">Photosensible Ride Height</div>
           </div>
         </div>
         <nav className="hidden items-center gap-8 md:flex">
@@ -118,7 +118,7 @@ function Hero() {
           <span className="text-[#dc0000]">Ferrari</span>
         </h1>
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-[#cfcfcf]">
-          La garde au sol se joue au millimètre. Notre LiDAR la mesure à 100 Hz
+          La garde au sol se joue au millimètre. Notre Photosensible la mesure à 100 Hz
           pour libérer chaque kilo d'appui — du baquet au mur des stands.
         </p>
         <div className="mt-8 flex flex-wrap gap-4">
@@ -138,7 +138,7 @@ function Hero() {
 
         <div className="mt-16 grid max-w-2xl grid-cols-3 gap-px bg-[#1f1f1f]">
           <HeroStat value="16" label="Titres pilotes" />
-          <HeroStat value="100 Hz" label="Scan LiDAR" />
+          <HeroStat value="100 Hz" label="Scan Photosensible" />
           <HeroStat value="0.1 mm" label="Résolution" />
         </div>
       </div>
@@ -180,7 +180,7 @@ function History() {
             <Milestone year="1950" text="Premier championnat du monde F1" />
             <Milestone year="1975" text="Domination Lauda · 312T" />
             <Milestone year="2004" text="Ère Schumacher · 15 victoires" />
-            <Milestone year="2026" text="SF-26 · LiDAR ride height" />
+            <Milestone year="2026" text="SF-26 · Photosensible ride height" />
           </div>
         </div>
       </div>
@@ -400,7 +400,7 @@ function FinalCTA() {
           Prenez le mur des stands
         </h2>
         <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-[#bdbdbd]">
-          Accédez au cockpit ingénieur : télémétrie temps réel, capteurs LiDAR
+          Accédez au cockpit ingénieur : télémétrie temps réel, capteurs Photosensible
           animés et réglages de setup en direct.
         </p>
         <Link
@@ -422,7 +422,7 @@ function Footer() {
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 py-8 md:flex-row">
         <div className="flex items-center gap-3">
           <FerrariShield size={28} />
-          <span className="label-mono">Scuderia Ferrari · LiDAR Ride Height</span>
+          <span className="label-mono">Scuderia Ferrari · Photosensible Ride Height</span>
         </div>
         <span className="label-mono">Démonstrateur front-only · données simulées</span>
       </div>

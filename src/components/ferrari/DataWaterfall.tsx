@@ -18,7 +18,7 @@ export function DataWaterfall({ rows = 14 }: { rows?: number }) {
 
   const offTrack=(r:LidarRow)=>{const rf=r.reflectivite?Number(r.reflectivite):0;return rf>80}
 
-  if(connected===false)return<div className="panel p-6 text-center"><div className="badge-live text-[#ffb800]"><span className="h-2 w-2 rounded-full bg-[#ffb800] animate-pulse-dot"/>Capteur LIDAR G2D non détecté</div><p className="label-mono mt-2">Branchez l&apos;Arduino et lancez <code className="text-[#00ff41]">python3 scripts/lidar_ingest.py</code></p></div>
+  if(connected===false)return<div className="panel p-6 text-center"><div className="badge-live text-[#ffb800]"><span className="h-2 w-2 rounded-full bg-[#ffb800] animate-pulse-dot"/>Capteur PHOTOSENSIBLE G2D non détecté</div><p className="label-mono mt-2">Branchez l&apos;Arduino et lancez <code className="text-[#00ff41]">python3 scripts/lidar_ingest.py</code></p></div>
   if(!data.length)return<div className="panel p-6 text-center"><div className="badge-live"><span className="h-2 w-2 rounded-full bg-[#00ff41] animate-pulse-dot"/>Initialisation flux CAN…</div></div>
 
   const otc=data.filter(offTrack).length
@@ -26,7 +26,7 @@ export function DataWaterfall({ rows = 14 }: { rows?: number }) {
   return(
     <div className="panel overflow-hidden">
       <div className="flex items-center justify-between border-b border-[#1f1f1f] px-4 py-3">
-        <span className="badge-live"><span className="h-1.5 w-1.5 rounded-full bg-[#00ff41] animate-pulse-dot"/>Flux CAN · LIDAR G2D</span>
+        <span className="badge-live"><span className="h-1.5 w-1.5 rounded-full bg-[#00ff41] animate-pulse-dot"/>Flux CAN · PHOTOSENSIBLE G2D</span>
         <div className="flex items-center gap-4">
           {otc>0&&<span className="label-mono text-[#dc0000]">⚠️ HORS-PISTE ×{otc}</span>}
           <span className="label-mono">{data.length} trames</span>

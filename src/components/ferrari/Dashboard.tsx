@@ -169,7 +169,7 @@ export function TelemetryPanel({ live }: { live: LiveTelemetry }) {
 
 /**
  * Car3DPanel — profil latéral pseudo-3D réagissant à l'assiette.
- * Visualise rake, garde au sol AV/AR et faisceaux LiDAR.
+ * Visualise rake, garde au sol AV/AR et faisceaux Photosensible.
  */
 export function Car3DPanel({
   setup,
@@ -195,7 +195,7 @@ export function Car3DPanel({
       </div>
 
       <svg viewBox="0 0 520 270" className="w-full">
-        {/* Faisceaux LiDAR avant / arrière */}
+        {/* Faisceaux Photosensible avant / arrière */}
         <defs>
           <linearGradient id="beam" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor="#00ff41" stopOpacity="0.55" />
@@ -244,7 +244,7 @@ export function Car3DPanel({
         <circle cx="380" cy={groundY - 24} r="28" fill="#0d0d0d" stroke="#333" strokeWidth="4" />
         <circle cx="380" cy={groundY - 24} r="11" fill="#1a1a1a" stroke="#dc0000" />
 
-        {/* Capteurs LiDAR (points verts) */}
+        {/* Capteurs Photosensible (points verts) */}
         <circle cx="140" cy={frontY} r="4" fill="#00ff41" />
         <circle cx="380" cy={rearY} r="4" fill="#00ff41" />
 
