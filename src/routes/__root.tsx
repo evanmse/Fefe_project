@@ -17,18 +17,18 @@ export const Route = createRootRoute({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Scuderia Ferrari · LiDAR Ride Height' },
+      { title: 'Scuderia Ferrari · Capteur photosensible Ride Height' },
       {
         name: 'description',
         content:
-          "Capteur LiDAR de garde au sol F1 — vitrine Scuderia Ferrari et cockpit ingénieur télémétrie temps réel.",
+          "Capteur photosensible de garde au sol F1 — vitrine Scuderia Ferrari et cockpit ingénieur télémétrie temps réel.",
       },
       { name: 'theme-color', content: '#0a0a0a' },
-      { property: 'og:title', content: 'Scuderia Ferrari · LiDAR Ride Height' },
+      { property: 'og:title', content: 'Scuderia Ferrari · Capteur photosensible Ride Height' },
       {
         property: 'og:description',
         content:
-          'Garde au sol mesurée au LiDAR — storytelling Ferrari et cockpit télémétrie temps réel.',
+          'Garde au sol mesurée au capteur photosensible — storytelling Ferrari et cockpit télémétrie temps réel.',
       },
       { property: 'og:type', content: 'website' },
     ],

@@ -1,30 +1,27 @@
-import { Car3DPanel, TelemetryPanel } from '../Dashboard'
-import type { AeroResult, LiveTelemetry, SetupState } from '../Dashboard'
+import { Car3DPanel } from '../Dashboard'
+import type { AeroResult, SetupState } from '../Dashboard'
 import { SectionHeader } from '../atoms'
 
 /* ============================================================
-   TelemetryView — wrap Car3DPanel + TelemetryPanel.
+   TelemetryView — plateforme aéro (profil réagissant à l'assiette).
    ============================================================ */
 
 export function TelemetryView({
   setup,
   aero,
-  live,
 }: {
   setup: SetupState
   aero: AeroResult
-  live: LiveTelemetry
 }) {
   return (
     <div className="flex flex-col gap-6">
       <SectionHeader
         index="TELEMETRY"
-        title="Plateforme aéro & flux live"
-        subtitle="Le profil réagit en direct à l'assiette du setup ; la télémétrie défile à 200 ms."
+        title="Plateforme aéro"
+        subtitle="Le profil réagit en direct à l'assiette du setup."
       />
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-5">
         <Car3DPanel setup={setup} aero={aero} />
-        <TelemetryPanel live={live} />
       </div>
     </div>
   )

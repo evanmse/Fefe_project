@@ -2,26 +2,24 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
   Car3DPanel,
-  TelemetryPanel,
   computeAero,
   type SetupState,
   type LiveTelemetry,
+  type AeroResult,
 } from '~/components/ferrari/Dashboard'
 import { useLiveTelemetry } from '~/hooks/useLiveTelemetry'
 import { useAuth } from '~/contexts/AuthContext'
 import { useTheme } from '~/contexts/ThemeContext'
 import { FerrariShield } from '~/components/ferrari/FerrariShield'
 import { Kpi, StatusPill } from '~/components/ferrari/atoms'
-import { Shell, type ShellTab } from '~/components/ferrari/Shell'
 import { OverviewView } from '~/components/ferrari/views/OverviewView'
 import { ArchitectureView } from '~/components/ferrari/views/ArchitectureView'
-import { TelemetryView } from '~/components/ferrari/views/TelemetryView'
 import { SimulatorsView } from '~/components/ferrari/views/SimulatorsView'
 import { IoTView } from '~/components/ferrari/views/IoTView'
+import { CircuitSimulation } from '~/components/ferrari/CircuitSimulation'
 import { DataWaterfall } from '~/components/ferrari/DataWaterfall'
 import { Chatbot } from '~/components/ferrari/Chatbot'
 import topdown from '~/assets/dashboard-car-topdown.png'
-import heroCar from '~/assets/vitrine-hero-car.jpg'
 
 export const Route = createFileRoute('/dashboard')({
   head: () => ({
@@ -60,8 +58,19 @@ function DashboardGate() {
 }
 
 /* ============================================================
-   Cockpit ingénieur
+   Cockpit ingénieur — layout plein écran, circuit au centre
    ============================================================ */
+type MainTab = 'circuit' | 'overview' | 'telemetry' | 'architecture' | 'simulators' | 'iot'
+
+const MAIN_TABS: { id: MainTab; label: string }[] = [
+  { id: 'circuit', label: '🏁 Circuit' },
+  { id: 'overview', label: '📊 Overview' },
+  { id: 'telemetry', label: '🛠️ Setup & Aéro' },
+  { id: 'architecture', label: '🧩 Architecture' },
+  { id: 'simulators', label: '🎮 Simulateurs' },
+  { id: 'iot', label: '📡 IoT Devices' },
+]
+
 function Cockpit({ user, onLogout }: { user: { name: string; email: string; picture?: string }; onLogout: () => void }) {
   const [setup, setSetup] = useState<SetupState>({
     rhFront: 22,
@@ -72,54 +81,89 @@ function Cockpit({ user, onLogout }: { user: { name: string; email: string; pict
 
   const aero = useMemo(() => computeAero(setup), [setup])
   const live = useLiveTelemetry(setup)
-
-  const tabs: ShellTab[] = [
-    { id: 'overview', label: 'Overview', content: <OverviewView live={live} /> },
-    { id: 'architecture', label: 'Architecture', content: <ArchitectureView /> },
-    {
-      id: 'telemetry',
-      label: 'Telemetry',
-      content: <TelemetryView setup={setup} aero={aero} live={live} />,
-    },
-    { id: 'simulators', label: 'Simulators', content: <SimulatorsView /> },
-    { id: 'iot', label: 'IoT Devices', content: <IoTView /> },
-  ]
+  const [tab, setTab] = useState<MainTab>('circuit')
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] pb-24 text-white">
+    <main className="flex h-screen flex-col overflow-hidden bg-[#0a0a0a] text-white">
       <CockpitHeader live={live} status={aero.status} onLogout={onLogout} />
-      <CockpitHero live={live} />
 
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8">
-        {/* KPIs */}
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Kpi label="Appui aéro" value={aero.downforce} unit="kg" accent="red" sub="Ground effect" />
-          <Kpi label="Traînée" value={aero.drag} unit="kg" accent="amber" sub={`L/D ${aero.efficiency}`} />
-          <Kpi label="Assiette / Rake" value={aero.pitch} unit="°" accent="neutral" sub="Cible ≈ +1.0°" />
-          <Kpi label="Balance avant" value={aero.balance} unit="%" accent="green" sub="Répartition d'appui" />
-        </section>
+      {/* Barre d'onglets principale du cockpit */}
+      <nav className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[#1f1f1f] bg-[#0d0d0d] px-4 py-2">
+        {MAIN_TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`whitespace-nowrap px-4 py-2 label-mono transition ${
+              tab === t.id ? 'bg-[#dc0000] text-white' : 'bg-[#141414] text-[#8a8a8a] hover:text-white'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
-        {/* Setup + LiDAR */}
-        <section className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-          <SetupPanel setup={setup} onChange={setSetup} status={aero.status} />
-          <RealCarPanel live={live} />
-        </section>
-
-        {/* Plateforme aéro + télémétrie */}
-        <section className="grid gap-6 lg:grid-cols-2">
-          <Car3DPanel setup={setup} aero={aero} />
-          <TelemetryPanel live={live} />
-        </section>
-
-        {/* Flux de données */}
-        <DataWaterfall />
-
-        {/* Station d'ingénierie (Shell + views) */}
-        <Shell tabs={tabs} />
+      {/* Zone principale plein écran */}
+      <div className="min-h-0 flex-1">
+        {tab === 'circuit' ? (
+          <div className="h-full p-4">
+            <CircuitSimulation />
+          </div>
+        ) : (
+          <div className="h-full overflow-y-auto">
+            <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8">
+              {tab === 'overview' && <OverviewView live={live} />}
+              {tab === 'telemetry' && (
+                <TelemetrySection setup={setup} onChange={setSetup} aero={aero} live={live} />
+              )}
+              {tab === 'architecture' && <ArchitectureView />}
+              {tab === 'simulators' && <SimulatorsView />}
+              {tab === 'iot' && <IoTView />}
+            </div>
+          </div>
+        )}
       </div>
 
       <Chatbot />
     </main>
+  )
+}
+
+/* -------------------- Onglet Setup & Aéro -------------------- */
+function TelemetrySection({
+  setup,
+  onChange,
+  aero,
+  live,
+}: {
+  setup: SetupState
+  onChange: (s: SetupState) => void
+  aero: AeroResult
+  live: LiveTelemetry
+}) {
+  return (
+    <div className="flex flex-col gap-6">
+      {/* KPIs */}
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Kpi label="Appui aéro" value={aero.downforce} unit="kg" accent="red" sub="Ground effect" />
+        <Kpi label="Traînée" value={aero.drag} unit="kg" accent="amber" sub={`L/D ${aero.efficiency}`} />
+        <Kpi label="Assiette / Rake" value={aero.pitch} unit="°" accent="neutral" sub="Cible ≈ +1.0°" />
+        <Kpi label="Balance avant" value={aero.balance} unit="%" accent="green" sub="Répartition d'appui" />
+      </section>
+
+      {/* Setup + LiDAR */}
+      <section className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+        <SetupPanel setup={setup} onChange={onChange} status={aero.status} />
+        <RealCarPanel live={live} />
+      </section>
+
+      {/* Plateforme aéro */}
+      <section className="grid gap-6">
+        <Car3DPanel setup={setup} aero={aero} />
+      </section>
+
+      {/* Flux de données */}
+      <DataWaterfall />
+    </div>
   )
 }
 
@@ -141,7 +185,7 @@ function CockpitHeader({
           <FerrariShield size={34} />
           <div className="leading-none">
             <div className="title-display text-sm">Cockpit ingénieur</div>
-            <div className="label-mono">SF-26 · LiDAR ride height</div>
+            <div className="label-mono">SF-26 · Ride height photosensible</div>
           </div>
         </div>
 
@@ -163,37 +207,6 @@ function CockpitHeader({
         </div>
       </div>
     </header>
-  )
-}
-
-/* -------------------- Hero -------------------- */
-function CockpitHero({ live }: { live: LiveTelemetry }) {
-  return (
-    <section className="relative overflow-hidden border-b border-[#1f1f1f]">
-      <img src={heroCar} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover opacity-25" />
-      <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-[#0a0a0a]/80 to-transparent" />
-      <div className="relative mx-auto flex max-w-7xl flex-col gap-3 px-6 py-12">
-        <span className="badge-live text-[#dc0000]">
-          <span className="h-2 w-2 bg-[#dc0000] animate-pulse-dot" />
-          SESSION EN COURS · MONZA
-        </span>
-        <h1 className="title-display text-4xl md:text-6xl">
-          Télémétrie temps réel
-        </h1>
-        <p className="max-w-xl text-sm text-[#bdbdbd]">
-          Pilotez les actionneurs IoT, le buzzer G2E et les LEDs des groupes distants. Données enregistrées en base MySQL.
-        </p>
-      </div>
-    </section>
-  )
-}
-
-function HeroMini({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="label-mono">{label}</div>
-      <div className="value-mono text-xl font-bold text-[#00ff41]">{value}</div>
-    </div>
   )
 }
 
@@ -270,7 +283,7 @@ function RealCarPanel({ live }: { live: LiveTelemetry }) {
       <div className="flex items-center justify-between border-b border-[#1f1f1f] px-5 py-3">
         <span className="badge-live">
           <span className="h-1.5 w-1.5 rounded-full bg-[#00ff41] animate-pulse-dot" />
-          Capteurs LiDAR · vue plongée
+          Capteurs photosensibles · vue plongée
         </span>
         <span className="label-mono">100 Hz</span>
       </div>
@@ -280,9 +293,9 @@ function RealCarPanel({ live }: { live: LiveTelemetry }) {
         <div className="absolute inset-0 scanline" />
 
         {/* Capteur AVANT */}
-        <Sensor top="22%" left="50%" value={`${live.rhFront.toFixed(1)} mm`} label="LiDAR AV" />
+        <Sensor top="22%" left="50%" value={`${live.rhFront.toFixed(1)} mm`} label="Photo AV" />
         {/* Capteur ARRIÈRE */}
-        <Sensor top="74%" left="50%" value={`${live.rhRear.toFixed(1)} mm`} label="LiDAR AR" />
+        <Sensor top="74%" left="50%" value={`${live.rhRear.toFixed(1)} mm`} label="Photo AR" />
       </div>
 
       <div className="grid grid-cols-2 gap-px border-t border-[#1f1f1f] bg-[#1f1f1f]">

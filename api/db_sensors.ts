@@ -111,9 +111,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const phpRes = await fetch(`${process.env.PHP_API_URL || 'http://localhost:3001'}/api/db_api.php?action=lidar_g2d&limit=${req.query.limit || 50}`);
           if (phpRes.ok) { const d = await phpRes.json(); return res.status(200).json({ ...d, source: 'php_proxy' }); }
         } catch {}
+        // Aucune donnée réelle disponible : on n'invente RIEN (capteur G2D requis).
         return res.status(200).json({
-          success: true, data: demoLidar(), count: 50, source: 'simulated',
-          note: 'Données LIDAR simulées. Installez mysql2 pour la BDD.'
+          success: true, data: [], count: 0, source: 'none',
+          note: 'Capteur G2D non connecté. Lancez scripts/lidar_ingest.py avec la carte branchée.'
         });
       }
     }
@@ -141,22 +142,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error("[db_sensors] Error:", err);
     return res.status(500).json({ success: false, error: "Server error" });
   }
-}
-
-function demoLidar() {
-  const now = Date.now();
-  return Array.from({ length: 50 }, (_, i) => {
-    const t = i * 0.1;
-    const dist = 200 + Math.sin(t * 1.7) * 80 + Math.sin(t * 0.3) * 40 + (Math.random() - 0.5) * 3;
-    const s = dist < 120 ? 'ERR' : dist < 180 ? 'WARN' : 'OK';
-    return {
-      id: 1000 + i,
-      distance_mm: Math.round(dist * 100) / 100,
-      luminosite: Math.max(0, Math.round(450 + Math.sin(t * 0.8) * 200 + Math.cos(t * 0.5) * 150 + (Math.random() - 0.5) * 60)),
-      angle_deg: Math.round(Math.sin(t * 0.6) * 15 * 100) / 100,
-      reflectivite: Math.round((60 + Math.cos(t * 0.4) * 20) * 100) / 100,
-      status: s,
-      date_mesure: new Date(now - (50 - i) * 2000).toISOString(),
-    };
-  });
 }

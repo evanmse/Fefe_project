@@ -53,6 +53,49 @@ npm run build        # Type-check + production build
 npm run typecheck    # Vérification types uniquement
 ```
 
+### Stack complète (capteur réel + base de données)
+
+Pour une démo « live » avec injection de données capteur dans MySQL :
+
+```bash
+# 1) Backend PHP (proxy API + base de données)
+php -S localhost:8080            # depuis la racine du projet
+
+# 2) Frontend Vite
+npm run dev                      # http://localhost:3000
+
+# 3) Pont capteur photosensible (mode démo, sans matériel)
+python3 scripts/lidar_ingest.py --demo
+```
+
+Le pont `lidar_ingest.py` simule le capteur photosensible : il détecte le passage
+de la ligne blanche (pic de luminosité ~1900 lux) et incrémente le compteur de
+tours dans la table `G2D_LIDAR`.
+
+---
+
+## 🏁 Circuit temps réel & comptage des tours
+
+L'onglet **Circuit** affiche une simulation plein écran du tracé pilotée par le
+capteur photosensible réel.
+
+| Élément | Comportement |
+|---------|--------------|
+| 🏎️ Voiture LEC | Tourne **en continu** sur le tracé (animation calée sur l'horloge), jamais bloquée même si un franchissement est manqué |
+| ⏱️ Comptage des tours | Piloté par le **capteur réel** : un tour est validé quand le passage de ligne survient après `MIN_LAP_MS` (40 % du temps de référence) |
+| ⚠️ Hors-piste | Quand un capteur de limite est franchi, la voiture **ralentit** (40 % de sa vitesse) sans s'arrêter, et l'indicateur passe au rouge |
+| 🔊 Buzzer | Bip physique à chaque tour bouclé |
+| 🟢 Flash de ligne | Cercle vert à chaque franchissement détecté |
+
+**Découplage clé :** l'animation visuelle (accumulateur de progression pondéré
+par la vitesse) est **indépendante** du capteur de ligne. Le capteur ne sert
+qu'au chrono, au comptage des tours, au flash et au buzzer. Résultat : la voiture
+tourne toujours, mais ralentit fidèlement hors des limites de piste.
+
+Les paramètres clés sont dans [`src/hooks/useRaceControl.ts`](src/hooks/useRaceControl.ts)
+(`TEMPS_REF_MS`, `MIN_LAP_MS`) et [`src/components/ferrari/CircuitSimulation.tsx`](src/components/ferrari/CircuitSimulation.tsx)
+(`OFFTRACK_SPEED`).
+
 ## 🌐 Déploiement
 
 > **https://scuderia-lidar-rideheight.vercel.app**

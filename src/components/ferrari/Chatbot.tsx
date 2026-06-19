@@ -53,7 +53,7 @@ function renderMarkdown(text: string): string {
 
 function localAnswer(q: string): string {
   const ql = q.toLowerCase()
-  if (ql.includes('lidar') || ql.includes('capteur')) return '🔬 Le Photosensible G2D mesure la luminosité (0-2150 lux) et la distance. Calibration : ADC 123→6lx, 854→121lx, 1007→2150lx. La détection hors-piste se fait par réflectivité > 80% (bande blanche).'
+  if (ql.includes('lidar') || ql.includes('photosensible') || ql.includes('capteur')) return '🔬 Le Photosensible G2D mesure la luminosité (0-2150 lux) et détecte les franchissements de ligne. Calibration : ADC 123→6lx, 854→121lx, 1007→2150lx. Le franchissement de ligne blanche se détecte par réflectivité > 80%.'
   if (ql.includes('buzzer') || ql.includes('sonner')) return '🔊 Le buzzer G2E accepte 7 commandes : BUZZER_PIT_STOP, BUZZER_SAFETY_CAR, BUZZER_RELEASE, BUZZER_HOLD, BUZZER_EMERGENCY, BUZZER_TEST, BUZZER_OFF. Pour le déclencher, crée une entrée dans commande_buzzer_g2e.'
   if (ql.includes('led') || ql.includes('lumière')) return '💡 Les LEDs sont contrôlées via la table leds_g2c. Change l\'état (0=OFF, 1=ON) pour allumer/éteindre.'
   if (ql.includes('temperature') || ql.includes('température') || ql.includes('chaud')) return '🌡️ Les capteurs de température sont dans la table Mesure (groupes g2c, g2e) et G2B. Actuellement : g2c=30°C, g2e=57°C, g2b=22°C.'

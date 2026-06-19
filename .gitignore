@@ -12,3 +12,7 @@ dist
 !.env.example
 .vercel
 .env*
+
+# Python cache
+__pycache__/
+*.pyc

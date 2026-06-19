@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
-"""Pont Arduino -> MySQL pour LIDAR G2D. Usage: python3 scripts/lidar_ingest.py [--demo]"""
+"""Pont capteur G2D -> MySQL (franchissement de ligne, données réelles).
+
+Lit les trames du sketch arduino/g2d_lidar_capteur.ino sur le port série
+(USB OU module Bluetooth HC-05/06, qui apparaît aussi comme port série) et
+insère chaque mesure dans la table G2D_LIDAR de la BDD partagée.
+
+Usage :
+  python3 scripts/lidar_ingest.py                 # auto-détecte le port série
+  python3 scripts/lidar_ingest.py --port /dev/cu.usbserial-XXXX
+  python3 scripts/lidar_ingest.py --port /dev/cu.HC-05      # Bluetooth (macOS)
+  python3 scripts/lidar_ingest.py --port COM5               # Windows
+  python3 scripts/lidar_ingest.py --demo          # sans matériel (données simulées)
+
+Dépendances : pip install mysql-connector-python pyserial
+"""
 import time, re, argparse, math, random
 try:
     import mysql.connector
@@ -7,9 +21,53 @@ except ImportError:
     print('pip install mysql-connector-python')
     exit(1)
 
-DB = {'host':'mysql-pitwallg2.alwaysdata.net','user':'pitwallg2','password':'Isepeleve','database':'pitwallg2_capteurs','charset':'utf8mb4','connect_timeout':10}
+DB = {'host':'mysql-pitwallg2.alwaysdata.net','user':'pitwallg2','password':'Isepeleve',
+      'database':'pitwallg2_capteurs','charset':'utf8mb4','connect_timeout':10}
+
 ADC_PTS = [123, 854, 1007]
 LUX_PTS = [6, 121, 2150]
+LUX_MAX = 2150.0
+
+CREATE_TABLE = """
+CREATE TABLE IF NOT EXISTS G2D_LIDAR (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  distance_mm  DECIMAL(8,2)  NULL,
+  luminosite   INT           NOT NULL,
+  adc_raw      INT           NOT NULL,
+  angle_deg    DECIMAL(6,2)  DEFAULT 0,
+  reflectivite DECIMAL(5,2)  NULL,
+  ligne        TINYINT(1)    DEFAULT 0,
+  tour         INT           DEFAULT 0,
+  lap_ms       INT           DEFAULT 0,
+  status       VARCHAR(8)    DEFAULT 'OK',
+  date_mesure  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_date (date_mesure)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+"""
+
+# Colonnes ajoutées après coup : migration idempotente pour les tables déjà créées
+MIGRATIONS = [
+    "ALTER TABLE G2D_LIDAR ADD COLUMN ligne TINYINT(1) DEFAULT 0",
+    "ALTER TABLE G2D_LIDAR ADD COLUMN tour INT DEFAULT 0",
+    "ALTER TABLE G2D_LIDAR ADD COLUMN lap_ms INT DEFAULT 0",
+]
+
+
+def ensure_schema(cur, conn):
+    cur.execute(CREATE_TABLE)
+    cur.execute("SHOW COLUMNS FROM G2D_LIDAR")
+    cols = {row[0] for row in cur.fetchall()}
+    for col, ddl in zip(('ligne', 'tour', 'lap_ms'), MIGRATIONS):
+        if col not in cols:
+            cur.execute(ddl)
+            print(f'[DB] colonne ajoutée : {col}')
+    conn.commit()
+
+# Trame riche du nouveau sketch : G2D,<adc>,<lux>,<refl>,<ligne>,<tour>,<lap_ms>,<status>
+PAT_CSV = re.compile(r'^G2D,([\d.]+),([\d.]+),([\d.]+),([01]),(\d+),(\d+),(\w+)', re.I)
+# Ancien sketch (rétro-compat) : "LUX: 123.4 lx"
+PAT_LUX = re.compile(r'LUX:\s*([\d.]+)\s*lx')
+
 
 def adc2lux(adc):
     if adc <= ADC_PTS[0]:
@@ -24,64 +82,208 @@ def adc2lux(adc):
             return LUX_PTS[i]+t*(LUX_PTS[i+1]-LUX_PTS[i])
     return 0
 
+
+def parse(line):
+    """Décode une trame série.
+
+    Retourne un dict :
+      {'rich': bool, 'adc', 'lux', 'refl', 'ligne', 'tour', 'lap_ms', 'status'}
+    - rich=True  : nouveau firmware (G2D,...) -> ligne/tour/lap_ms déjà calculés
+    - rich=False : ancien firmware (LUX: x lx) -> détection faite côté PC
+    Retourne None si la ligne n'est pas reconnue.
+    """
+    m = PAT_CSV.match(line.strip())
+    if m:
+        return {'rich': True, 'adc': int(float(m.group(1))), 'lux': float(m.group(2)),
+                'refl': float(m.group(3)), 'ligne': int(m.group(4)), 'tour': int(m.group(5)),
+                'lap_ms': int(m.group(6)), 'status': m.group(7).upper()}
+    m = PAT_LUX.search(line)
+    if m:
+        lux = float(m.group(1)); adc = int((lux/LUX_MAX)*1007)
+        refl = max(0.0, min(100.0, lux/LUX_MAX*100))
+        status = 'ERR' if adc <= 2 else ('WARN' if adc >= 1021 else 'OK')
+        return {'rich': False, 'adc': adc, 'lux': lux, 'refl': refl,
+                'ligne': 0, 'tour': 0, 'lap_ms': 0, 'status': status}
+    return None
+
+
+class LineDetector:
+    """Détection de franchissement par écart relatif à une ligne de base adaptative.
+
+    Utilisé quand le firmware n'embarque pas la logique (ancien sketch).
+
+    Le capteur photosensible ne fournit pas de pic absolu fiable : selon
+    l'éclairage et la couleur du sol, le passage de la ligne se traduit par une
+    *variation transitoire* (creux OU pic) de la luminosité autour d'un niveau
+    de fond lentement variable (ex. fond ~100 lux, creux ~70 lux au passage).
+    Un seuil absolu sur la réflectivité (~4-5 %) ne se déclenche donc jamais.
+
+    On suit une ligne de base (moyenne mobile exponentielle) et on déclenche un
+    franchissement quand l'écart relatif |lux - base| / base dépasse
+    `seuil_entree`, puis on ré-arme en repassant sous `seuil_sortie`. La ligne
+    de base est gelée pendant l'événement pour ne pas « absorber » la ligne.
+    """
+    def __init__(self, seuil_entree=0.15, seuil_sortie=0.06,
+                 ema_alpha=0.05, anti_rebond_s=0.8, base_min_lux=5.0):
+        self.seuil_entree = seuil_entree
+        self.seuil_sortie = seuil_sortie
+        self.ema_alpha = ema_alpha
+        self.anti_rebond = anti_rebond_s
+        self.base_min_lux = base_min_lux
+        self.base = None       # ligne de base lux (EMA), amorcée à la 1re mesure
+        self.sur_ligne = False
+        self.tour = 0
+        self.t_dern = 0.0      # horodatage du dernier franchissement
+
+    def update(self, lux, now):
+        """Retourne (ligne, tour, lap_ms) pour la mesure lux courante."""
+        if self.base is None:               # amorçage de la ligne de base
+            self.base = lux
+            return 0, self.tour, 0
+        base = max(self.base, self.base_min_lux)
+        ecart = abs(lux - base) / base      # écart relatif (creux ou pic)
+        ligne = 0
+        lap_ms = 0
+        if not self.sur_ligne:
+            if ecart > self.seuil_entree and (now - self.t_dern) > self.anti_rebond:
+                self.sur_ligne = True
+                ligne = 1
+                if self.t_dern > 0:
+                    lap_ms = int((now - self.t_dern) * 1000)
+                self.t_dern = now
+                self.tour += 1
+            else:                            # hors ligne : la base s'adapte lentement
+                self.base += self.ema_alpha * (lux - self.base)
+        elif ecart < self.seuil_sortie:
+            self.sur_ligne = False           # ré-armement (base figée ce tick)
+        return ligne, self.tour, lap_ms
+
+
+def open_serial(preferred_port, baud, wait=True):
+    """Ouvre le port série (USB/Bluetooth). Retourne (ser, port) ou (None, None).
+
+    Si wait=True, réessaie indéfiniment jusqu'à ce qu'un port soit disponible
+    (utile pour une démo : on rebranche la carte et ça repart tout seul).
+    """
+    import serial, serial.tools.list_ports
+    while True:
+        ports = list(serial.tools.list_ports.comports())
+        port = preferred_port or (ports[0].device if ports else None)
+        if port:
+            try:
+                ser = serial.Serial(port, baud, timeout=2)
+                time.sleep(2); ser.reset_input_buffer()
+                return ser, port
+            except Exception as e:
+                print(f'[!] Port {port} inaccessible : {e}')
+        if not wait:
+            return None, None
+        print('[…] En attente de la carte (rebranche l\'USB / réappaire le Bluetooth)…')
+        time.sleep(2)
+
+
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--port',help='port serie')
-    p.add_argument('--baud',type=int,default=115200)
-    p.add_argument('--interval',type=float,default=0.5)
-    p.add_argument('--demo',action='store_true')
+    p.add_argument('--port', help='port série (USB ou Bluetooth SPP)')
+    p.add_argument('--baud', type=int, default=115200)
+    p.add_argument('--interval', type=float, default=0.1, help='cadence mini entre 2 INSERT (s)')
+    p.add_argument('--seuil-entree', type=float, default=0.15,
+                   help='écart relatif (0-1) à la ligne de base déclenchant un franchissement')
+    p.add_argument('--seuil-sortie', type=float, default=0.06,
+                   help='écart relatif sous lequel on ré-arme la détection')
+    p.add_argument('--anti-rebond', type=float, default=0.8,
+                   help='délai mini (s) entre deux franchissements')
+    p.add_argument('--demo', action='store_true',
+                   help='génère des données SIMULÉES (aucun capteur requis)')
     a = p.parse_args()
+
     print('[DB] Connexion MySQL...')
     conn = mysql.connector.connect(**DB)
     cur = conn.cursor()
-    print('[DB] OK. Calibration: ADC123->6lx ADC854->121lx ADC1007->2150lx')
+    ensure_schema(cur, conn)
+    print('[DB] OK · table G2D_LIDAR prête.')
+
     ser = None
     if not a.demo:
         try:
-            import serial, serial.tools.list_ports
-            ports = list(serial.tools.list_ports.comports())
-            port = a.port or (ports[0].device if ports else None)
-            if port:
-                ser = serial.Serial(port, a.baud, timeout=2)
-                time.sleep(2); ser.reset_input_buffer()
-                print(f'[SER] {port} OK')
-        except Exception as e:
-            print(f'[!] Pas Arduino: {e} -> mode demo')
-            a.demo = True
-    pat = re.compile(r'LUX:\s*([\d.]+)\s*lx')
-    cnt = 0; last = 0
+            import serial  # noqa: F401
+        except ImportError:
+            print('[ERREUR] pyserial manquant -> pip install pyserial')
+            cur.close(); conn.close(); return
+        ser, port = open_serial(a.port, a.baud, wait=False)
+        if not ser:
+            print('[ERREUR] Aucun port série détecté. Branche la carte, ou lance --demo.')
+            cur.close(); conn.close(); return
+        print(f'[SER] {port} @ {a.baud} OK')
+    else:
+        print('[!] MODE DÉMO — données simulées (ne pas utiliser pour une vraie mesure).')
+
+    detector = LineDetector(seuil_entree=a.seuil_entree, seuil_sortie=a.seuil_sortie,
+                            anti_rebond_s=a.anti_rebond)
+    cnt = 0; last = 0.0; t_demo = 0.0
     try:
         while True:
-            t = time.time()
+            now = time.time()
             if ser:
-                line = ser.readline().decode('utf-8','ignore').strip()
-                m = pat.search(line)
-                if m:
-                    lux = float(m.group(1))
-                    adc = int((lux/2150)*1007)
-                else:
+                try:
+                    raw = ser.readline().decode('utf-8', 'ignore')
+                except Exception as e:
+                    # Carte débranchée / USB en veille : on reconnecte sans perdre les tours.
+                    print(f'[!] Lecture série interrompue ({e}). Reconnexion…')
+                    try:
+                        ser.close()
+                    except Exception:
+                        pass
+                    ser, port = open_serial(a.port, a.baud, wait=True)
+                    print(f'[SER] {port} reconnecté @ {a.baud}.')
                     continue
+                rec = parse(raw)
+                if not rec:
+                    continue
+                adc, lux, refl, status = rec['adc'], rec['lux'], rec['refl'], rec['status']
+                if rec['rich']:
+                    ligne, tour, lap_ms = rec['ligne'], rec['tour'], rec['lap_ms']
+                else:
+                    ligne, tour, lap_ms = detector.update(lux, now)
             else:
-                # Demo: base sinusoïdale + spikes
-                base = 500+300*(0.5+0.5*math.sin(t*0.3))
-                spike = 1500 if random.random()<0.05 else 0
-                lux = max(0,min(2500,base+spike+random.uniform(-80,80)))
-                adc = int((lux/2150)*1007)
-            if t - last >= a.interval:
-                dist = 300-(lux/2150)*200+(hash(str(int(t*1000)))%50-25)
-                angle = (adc/1023)*30-15
-                ref = 50+(lux/2150)*30
-                status = 'ERR' if lux<1 else ('WARN' if lux<10 else 'OK')
-                cur.execute('INSERT INTO G2D_LIDAR (distance_mm,luminosite,adc_raw,angle_deg,reflectivite,status,date_mesure) VALUES (%s,%s,%s,%s,%s,%s,NOW())',
-                    (round(dist,2),round(lux),adc,round(angle,2),round(ref,2),status))
-                conn.commit()
-                cnt+=1; last=t
-                marker = '⚡' if lux>1500 else ('🌑' if lux<10 else '💡')
-                print(f'[{cnt}] {marker} {lux:.1f} lux ADC={adc} dist={dist:.0f}mm -> BDD')
-            time.sleep(max(0,a.interval-(time.time()-t)))
+                # Démo : asphalte sombre + spike net à chaque passage de ligne
+                t_demo += a.interval
+                base = 120 + 60*(0.5+0.5*math.sin(t_demo*0.4)) + random.uniform(-10, 10)
+                spike = 1900 if (int(t_demo*10) % 90 == 0) else 0
+                lux = max(0, min(LUX_MAX, (spike or base) + random.uniform(-15, 15)))
+                adc = int((lux/LUX_MAX)*1007)
+                refl = max(0.0, min(100.0, lux/LUX_MAX*100))
+                status = 'OK' if adc > 2 else 'ERR'
+                ligne, tour, lap_ms = detector.update(lux, now)
+
+            if now - last < a.interval:
+                continue
+
+            # distance_mm = garde au sol optique estimée à partir du lux (proxy documenté)
+            dist = round(300 - (lux/LUX_MAX)*200, 2)
+            cur.execute(
+                'INSERT INTO G2D_LIDAR (distance_mm,luminosite,adc_raw,angle_deg,reflectivite,'
+                'ligne,tour,lap_ms,status,date_mesure) VALUES (%s,%s,%s,0,%s,%s,%s,%s,%s,NOW())',
+                (dist, round(lux), adc, round(refl, 2), ligne, tour, lap_ms, status))
+            conn.commit()
+            cnt += 1; last = now
+            base = detector.base or lux
+            if ligne:
+                mark = '🏁'
+            elif lux < base * 0.94:
+                mark = '🌑'      # creux marqué (ligne probable)
+            elif lux > base * 1.06:
+                mark = '💡'      # pic marqué
+            else:
+                mark = '·'
+            extra = f'  >>> FRANCHISSEMENT · TOUR {tour}' + (f' ({lap_ms} ms)' if lap_ms else '') if ligne else ''
+            print(f'[{cnt}] {mark} {lux:6.1f} lux  ADC={adc:4d}  refl={refl:5.1f}%  {status}{extra}')
     except KeyboardInterrupt:
-        print(f'\n[STOP] {cnt} mesures')
+        print(f'\n[STOP] {cnt} mesures envoyées · {detector.tour} tours détectés.')
     finally:
-        if ser: ser.close()
+        if ser:
+            ser.close()
         cur.close(); conn.close()
+
+
 main()
