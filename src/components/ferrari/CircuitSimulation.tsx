@@ -42,6 +42,13 @@ const LAP_FALLBACK_MS = TEMPS_REF_MS // temps de tour de référence du circuit 
 // elle ralentit nettement (40 % de sa vitesse) sans jamais s'arrêter.
 const OFFTRACK_SPEED = 0.4
 
+// Seuil de réflectivité (%) au-delà duquel on considère la voiture HORS PISTE.
+// Le capteur photosensible lit ~2-3 % sur l'asphalte/ambiance et grimpe
+// au-dessus de 50 % sur la ligne blanche éclairée (= bord de piste). Beaucoup
+// de lumière réfléchie = la voiture a mordu la limite → elle ralentit. Le
+// hors-piste vient donc UNIQUEMENT du capteur réel, jamais d'une simulation.
+const OFFTRACK_REFL = 40
+
 // Voitures concurrentes (simulées) qui tournent en continu sur le tracé.
 // La voiture du pilote reste pilotée par le capteur réel ; celles-ci animent
 // le circuit avec des rythmes et des décalages de départ différents.
@@ -76,12 +83,36 @@ export function CircuitSimulation() {
   const [fullscreen, setFullscreen] = useState(false)
   const [sideTab, setSideTab] = useState<SideTab>('course')
 
+  // Capteur débranché / flux périmé : on BLOQUE tout (pas de données simulées
+  // tant que le capteur n'émet pas en direct).
+  const disconnected = race.connected === false
+
+  // Horloge « décor » (voitures concurrentes) : n'avance QUE quand le capteur
+  // est branché, pour figer toute animation simulée à la déconnexion.
+  const [decorClock, setDecorClock] = useState(Date.now())
+  const decorClockRef = useRef(Date.now())
+  const disconnectedRef = useRef(disconnected)
+
+  // Dernier instantané de télémétrie capté quand le capteur était branché :
+  // on l'affiche figé lorsque le capteur est déconnecté.
+  const [liveSnap, setLiveSnap] = useState(live)
+
   // Accumulateur de progression : la voiture avance d'un delta de temps à
   // chaque frame, à vitesse réduite quand elle est hors des limites de piste.
   const progressRef = useRef(0)
   const lastTsRef = useRef(Date.now())
   const offTrackRef = useRef(false)
   const lapRef = useRef(LAP_FALLBACK_MS)
+
+  // Garde l'état de connexion accessible à la boucle d'animation.
+  useEffect(() => {
+    disconnectedRef.current = disconnected
+  }, [disconnected])
+
+  // Fige la télémétrie sur la dernière valeur reçue capteur branché.
+  useEffect(() => {
+    if (!disconnected) setLiveSnap(live)
+  }, [live, disconnected])
 
   // Longueur du tracé (pour positionner la voiture).
   useEffect(() => {
@@ -91,11 +122,15 @@ export function CircuitSimulation() {
   // Boucle d'animation ~20 fps : on accumule la progression selon le temps
   // écoulé × la vitesse courante. Hors-piste → la voiture RALENTIT (facteur
   // OFFTRACK_SPEED) mais continue toujours de tourner, jamais bloquée.
+  // Capteur déconnecté → tout le décor simulé est FIGÉ (aucune fausse donnée).
   useEffect(() => {
     const id = setInterval(() => {
       const t = Date.now()
       const dt = t - lastTsRef.current
       lastTsRef.current = t
+      if (disconnectedRef.current) return // fige voiture + concurrentes
+      decorClockRef.current += dt
+      setDecorClock(decorClockRef.current)
       const speedFactor = offTrackRef.current ? OFFTRACK_SPEED : 1
       let p = progressRef.current + (dt / lapRef.current) * speedFactor
       p -= Math.floor(p) // garde p dans [0, 1)
@@ -146,16 +181,17 @@ export function CircuitSimulation() {
   }, [progress, pathLen])
 
   // Voitures concurrentes (simulées) qui tournent en continu sur le tracé.
+  // Calées sur l'horloge « décor » (figée à la déconnexion capteur).
   const ghosts = useMemo(() => {
     const path = pathRef.current
     if (!path || pathLen === 0)
       return [] as Array<{ id: string; color: string; x: number; y: number; progress: number }>
     return GHOST_CARS.map((g) => {
-      const p = (now / (lapEstimate * g.speed) + g.offset) % 1
+      const p = (decorClock / (lapEstimate * g.speed) + g.offset) % 1
       const pt = path.getPointAtLength(p * pathLen)
       return { id: g.id, color: g.color, x: pt.x, y: pt.y, progress: p }
     })
-  }, [now, pathLen, lapEstimate])
+  }, [decorClock, pathLen, lapEstimate])
 
   // Classement instantané (par avancement sur le tour), pilote inclus.
   const standings = useMemo(() => {
@@ -169,15 +205,23 @@ export function CircuitSimulation() {
   // Secteur courant (1 / 2 / 3).
   const sector = progress < 1 / 3 ? 1 : progress < 2 / 3 ? 2 : 3
 
-  // Capteurs de limites de piste sous le châssis (simulés mais réalistes).
-  const drift = Math.sin(progress * Math.PI * 2 * 3) * 0.55 + Math.sin(now / 700) * 0.45
+  const refl = race.sensor?.reflectivite ?? 0
+  const reflPct = Math.min(100, Math.max(0, refl))
+
+  // HORS-PISTE réel : déduit UNIQUEMENT du capteur photosensible. Forte
+  // réflectivité (ligne blanche / bord de piste éclairé) ou drapeau « ligne »
+  // du pont = la voiture a mordu la limite → elle ralentit. Aucune simulation.
+  // Ne s'applique que pendant une session active.
+  const offTrack = !disconnected && race.active && (race.onLine || reflPct >= OFFTRACK_REFL)
+
+  // Capteurs de limites de piste sous le châssis, pilotés par le hors-piste
+  // réel (les 4 tuiles passent en LIMIT quand le capteur détecte la sortie).
   const limitSensors: LimitSensor[] = [
-    { id: 'FL', label: 'Avant G.', side: 'L', limit: drift < -0.82 },
-    { id: 'FR', label: 'Avant D.', side: 'R', limit: drift > 0.82 },
-    { id: 'RL', label: 'Arrière G.', side: 'L', limit: drift < -0.9 },
-    { id: 'RR', label: 'Arrière D.', side: 'R', limit: drift > 0.9 },
+    { id: 'FL', label: 'Avant G.', side: 'L', limit: offTrack },
+    { id: 'FR', label: 'Avant D.', side: 'R', limit: offTrack },
+    { id: 'RL', label: 'Arrière G.', side: 'L', limit: offTrack },
+    { id: 'RR', label: 'Arrière D.', side: 'R', limit: offTrack },
   ]
-  const offTrack = limitSensors.some((s) => s.limit)
 
   // La boucle d'animation lit cet état pour ralentir la voiture hors-piste.
   useEffect(() => {
@@ -187,15 +231,37 @@ export function CircuitSimulation() {
   // Flash de la ligne au franchissement (< 600 ms).
   const lineFlash = race.lastCrossingTs != null && now - race.lastCrossingTs < 600
 
-  const refl = race.sensor?.reflectivite ?? 0
-  const reflPct = Math.min(100, Math.max(0, refl))
-
   // Contenu de l'onglet latéral actif.
   const sidePanel = (() => {
     switch (sideTab) {
       case 'course':
         return (
           <div className="flex flex-col gap-4">
+            {/* Contrôle manuel de la session : indépendant du capteur, pour ne
+                pas dépendre de la détection de début/fin par le capteur. */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => race.start()}
+                disabled={disconnected}
+                className={`label-mono border px-3 py-3 text-[13px] font-bold transition-colors ${
+                  race.active
+                    ? 'border-[#00ff41]/60 bg-[#00ff41]/10 text-[#00ff41]'
+                    : 'border-[#2a2a2a] text-[#8a8a8a] hover:border-[#00ff41] hover:text-[#00ff41]'
+                } disabled:cursor-not-allowed disabled:opacity-40`}
+              >
+                {race.active ? '● Course en cours' : '▶ Démarrer la course'}
+              </button>
+              <button
+                type="button"
+                onClick={() => race.stop()}
+                disabled={!race.active}
+                className="label-mono border border-[#2a2a2a] px-3 py-3 text-[13px] font-bold text-[#8a8a8a] transition-colors hover:border-[#dc0000] hover:text-[#dc0000] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ■ Arrêter
+              </button>
+            </div>
+
             <div className="panel p-5 flex flex-col gap-2">
               <span className="label-mono">🏁 Tour en cours</span>
               <div className="flex items-baseline gap-3">
@@ -205,10 +271,17 @@ export function CircuitSimulation() {
                   <span className="label-mono text-[10px]">chrono live</span>
                 </div>
               </div>
-              {race.currentLap === 0 && (
-                <p className="text-[13px] text-[#ffb800] leading-snug">
-                  Passe le capteur sur la ligne blanche pour lancer le 1ᵉʳ tour.
+              {!race.active ? (
+                <p className="text-[13px] text-[#8a8a8a] leading-snug">
+                  Course arrêtée. Appuie sur « Démarrer la course » pour lancer
+                  une nouvelle session de comptage.
                 </p>
+              ) : (
+                race.currentLap === 0 && (
+                  <p className="text-[13px] text-[#ffb800] leading-snug">
+                    Passe le capteur sur la ligne blanche pour lancer le 1ᵉʳ tour.
+                  </p>
+                )
               )}
             </div>
 
@@ -338,7 +411,8 @@ export function CircuitSimulation() {
               ))}
             </div>
             <p className="label-mono text-[9px] text-[#6a6a6a]">
-              Ligne = capteur réel · limites de piste = simulées sous le châssis.
+              Ligne ET limites de piste = capteur photosensible réel (forte
+              réflectivité = bord de piste → la voiture ralentit).
             </p>
           </div>
         )
@@ -350,16 +424,16 @@ export function CircuitSimulation() {
               Télémétrie voiture (simulée)
             </span>
             <div className="grid grid-cols-2 gap-3">
-              <SimTile label="Vitesse" value={Math.round(live.speed)} unit="km/h" color="#f5f5f5" />
-              <SimTile label="Rapport" value={live.gear} unit="" color="#dc0000" />
-              <SimTile label="Régime" value={Math.round(live.rpm)} unit="rpm" color="#ffb800" />
-              <SimTile label="G latéral" value={live.latG.toFixed(1)} unit="g" color="#3b82f6" />
-              <SimTile label="Temp. pneus" value={Math.round(live.tireTemp)} unit="°C" color="#ff7000" />
+              <SimTile label="Vitesse" value={Math.round(liveSnap.speed)} unit="km/h" color="#f5f5f5" />
+              <SimTile label="Rapport" value={liveSnap.gear} unit="" color="#dc0000" />
+              <SimTile label="Régime" value={Math.round(liveSnap.rpm)} unit="rpm" color="#ffb800" />
+              <SimTile label="G latéral" value={liveSnap.latG.toFixed(1)} unit="g" color="#3b82f6" />
+              <SimTile label="Temp. pneus" value={Math.round(liveSnap.tireTemp)} unit="°C" color="#ff7000" />
               <SimTile
                 label="DRS"
-                value={live.drs ? 'ON' : 'OFF'}
+                value={liveSnap.drs ? 'ON' : 'OFF'}
                 unit=""
-                color={live.drs ? '#00ff41' : '#8a8a8a'}
+                color={liveSnap.drs ? '#00ff41' : '#8a8a8a'}
               />
             </div>
             <p className="label-mono text-[9px] text-[#6a6a6a]">
@@ -394,8 +468,21 @@ export function CircuitSimulation() {
           <span className="label-mono">
             Secteur S{sector} · {(progress * 100).toFixed(0)}%
           </span>
-          {race.connected === false && (
-            <span className="label-mono text-[#ffb800]">⚠ Capteur G2D non connecté</span>
+          {disconnected && (
+            <span className="label-mono border border-[#dc0000]/60 bg-[#dc0000]/10 px-2 py-0.5 text-[#dc0000]">
+              ⚠ Capteur G2D déconnecté
+            </span>
+          )}
+          {!disconnected && (
+            <span
+              className={`label-mono border px-2 py-0.5 ${
+                race.active
+                  ? 'border-[#00ff41]/50 bg-[#00ff41]/10 text-[#00ff41]'
+                  : 'border-[#2a2a2a] text-[#8a8a8a]'
+              }`}
+            >
+              {race.active ? '● Course active' : '■ Course arrêtée'}
+            </span>
           )}
         </div>
         <button
@@ -411,6 +498,26 @@ export function CircuitSimulation() {
       <div className="grid flex-1 min-h-0 gap-4 lg:grid-cols-[1fr_360px]">
         {/* ---- Tracé du circuit (zone principale) ---- */}
         <div className="panel panel-grid relative flex flex-col overflow-hidden">
+          {/* Écran de blocage : aucune donnée n'est affichée tant que le
+              capteur G2D n'émet pas en direct (pas de simulation à vide). */}
+          {disconnected && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-[#050505]/95 px-6 text-center">
+              <span className="text-5xl">🔌</span>
+              <span className="value-mono text-2xl font-bold text-[#dc0000]">
+                Capteur G2D déconnecté
+              </span>
+              <p className="label-mono max-w-md text-[12px] leading-relaxed text-[#bdbdbd]">
+                Aucune donnée capteur en direct. Branchez le capteur photosensible
+                et lancez le pont&nbsp;:
+              </p>
+              <code className="value-mono border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-[11px] text-[#ffb800]">
+                python3 scripts/lidar_ingest.py --port /dev/cu.usbmodemXXXX
+              </code>
+              <p className="label-mono text-[10px] text-[#6a6a6a]">
+                La simulation reste figée tant que le flux réel n'est pas rétabli.
+              </p>
+            </div>
+          )}
           <div className="relative flex-1">
             <svg
               viewBox="0 0 640 380"
@@ -474,7 +581,7 @@ export function CircuitSimulation() {
             </span>
             <span>
               Vitesse simulée :{' '}
-              {Math.round(offTrack ? live.speed * OFFTRACK_SPEED : live.speed)} km/h
+              {Math.round(offTrack ? liveSnap.speed * OFFTRACK_SPEED : liveSnap.speed)} km/h
             </span>
             <span className="text-[#00ff41]">G2D · 100 Hz</span>
           </div>

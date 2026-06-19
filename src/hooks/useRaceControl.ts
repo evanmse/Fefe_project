@@ -44,6 +44,8 @@ export interface SensorReading {
 export interface RaceState {
   /** null = test en cours, true/false = capteur joignable */
   connected: boolean | null
+  /** course armée : on ne compte les tours que pendant une session active */
+  active: boolean
   /** dernière lecture réelle du capteur */
   sensor: SensorReading | null
   /** le capteur est actuellement sur la ligne blanche */
@@ -61,6 +63,7 @@ export interface RaceState {
 }
 
 interface RawRow {
+  id?: number | string
   luminosite: number | string
   reflectivite: number | string | null
   status: string
@@ -71,6 +74,22 @@ interface RawRow {
 
 const POLL_MS = 500
 
+/** Au-delà de ce délai sans NOUVELLE mesure (id figé), on considère le
+ *  capteur déconnecté : le pont scripts/lidar_ingest.py n'écrit plus.
+ *  La base garde les anciennes lignes, donc une réponse 200 ne suffit PAS
+ *  à prouver que le capteur est branché : seule l'arrivée de lignes
+ *  fraîches le prouve. On compare l'horloge CLIENT (pas date_mesure côté
+ *  serveur) pour rester insensible au fuseau horaire. */
+export const STALE_MS = 2500
+
+/** Contrôles de session retournés en plus de l'état de course. */
+export interface RaceControl extends RaceState {
+  /** démarre une nouvelle course (remet les compteurs à zéro et arme) */
+  start: () => void
+  /** arrête la course en cours (fige l'historique, stoppe le chrono) */
+  stop: () => void
+}
+
 /** Déclenche un bip court sur le buzzer physique à chaque tour bouclé. */
 function buzzLap() {
   window
@@ -80,9 +99,10 @@ function buzzLap() {
     })
 }
 
-export function useRaceControl(): RaceState {
+export function useRaceControl(): RaceControl {
   const initial: RaceState = {
     connected: null,
+    active: false,
     sensor: null,
     onLine: false,
     currentLap: 0,
@@ -95,11 +115,38 @@ export function useRaceControl(): RaceState {
   const [state, setState] = useState<RaceState>(initial)
   const stateRef = useRef<RaceState>(initial)
   const prevTour = useRef(0)
+  // Session armée manuellement (boutons Démarrer / Arrêter).
+  const activeRef = useRef(false)
+  // Suivi de fraîcheur : dernier id vu + horloge client à laquelle on l'a vu.
+  const lastIdRef = useRef<string | null>(null)
+  const lastFreshRef = useRef<number>(0)
 
   const commit = useCallback((next: RaceState) => {
     stateRef.current = next
     setState(next)
   }, [])
+
+  /** Démarre une nouvelle course : remet les compteurs à zéro et arme la
+   *  session. Le 1ᵉʳ passage suivant lancera le tour 1. */
+  const start = useCallback(() => {
+    activeRef.current = true
+    commit({
+      ...stateRef.current,
+      active: true,
+      currentLap: 0,
+      laps: [],
+      bestMs: null,
+      lapStartTs: null,
+      lastCrossingTs: null,
+    })
+  }, [commit])
+
+  /** Arrête la course : fige l'historique et stoppe le chrono. Le comptage
+   *  ne dépend plus du capteur pour la fin de course. */
+  const stop = useCallback(() => {
+    activeRef.current = false
+    commit({ ...stateRef.current, active: false, lapStartTs: null })
+  }, [commit])
 
   const poll = useCallback(async () => {
     let rows: RawRow[] | null = null
@@ -117,6 +164,26 @@ export function useRaceControl(): RaceState {
     }
 
     const latest = rows[0]
+
+    // Fraîcheur : la base renvoie toujours les dernières lignes, même si le
+    // pont capteur est arrêté. On ne fait confiance qu'à l'arrivée de
+    // NOUVELLES mesures (id qui change). Si l'id reste figé plus de STALE_MS,
+    // le capteur n'écrit plus → on bloque comme s'il était débranché.
+    const now0 = Date.now()
+    const latestId = latest.id != null ? String(latest.id) : null
+    if (latestId !== lastIdRef.current) {
+      lastIdRef.current = latestId
+      lastFreshRef.current = now0
+    }
+    const isFresh = latestId != null && now0 - lastFreshRef.current < STALE_MS
+    if (!isFresh) {
+      // Données périmées : on fige l'état et on signale la déconnexion,
+      // sans avancer les tours sur de vieilles lignes.
+      commit({ ...stateRef.current, connected: false })
+      prevTour.current = Number(latest.tour ?? 0)
+      return
+    }
+
     const tour = Number(latest.tour ?? 0)
     const onLine = Number(latest.ligne ?? 0) === 1
     const sensor: SensorReading = {
@@ -125,17 +192,24 @@ export function useRaceControl(): RaceState {
       status: latest.status || 'OK',
     }
 
+    // Hors session (course non démarrée ou arrêtée) : on rafraîchit juste le
+    // capteur, sans toucher aux compteurs. On re-cale `prevTour` pour que le
+    // 1ᵉʳ passage après Démarrer ne soit pas compté par erreur.
+    if (!activeRef.current) {
+      prevTour.current = tour
+      commit({ ...stateRef.current, connected: true, active: false, sensor, onLine })
+      return
+    }
+
     const prev = stateRef.current
     let { laps, bestMs, lapStartTs, lastCrossingTs, currentLap } = prev
     let shouldBuzz = false
 
-    // Le pont a redémarré (le compteur de passages repart à 0) → reset course.
+    // Reconnexion série : l'Arduino redémarre et son compteur `tour` repart à
+    // zéro. On NE remet PAS la course à zéro (c'était la cause du comptage qui
+    // « coupait ») : on re-cale simplement la référence et on garde l'historique.
     if (tour < prevTour.current) {
-      laps = []
-      bestMs = null
-      lapStartTs = null
-      lastCrossingTs = null
-      currentLap = 0
+      prevTour.current = tour
     }
 
     // Nouveau passage physique devant la ligne (le pont a incrémenté `tour`).
@@ -167,6 +241,7 @@ export function useRaceControl(): RaceState {
 
     commit({
       connected: true,
+      active: true,
       sensor,
       onLine,
       currentLap,
@@ -185,5 +260,5 @@ export function useRaceControl(): RaceState {
     return () => clearInterval(id)
   }, [poll])
 
-  return state
+  return { ...state, start, stop }
 }
