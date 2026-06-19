@@ -108,54 +108,40 @@ def parse(line):
 
 
 class LineDetector:
-    """Détection de franchissement par écart relatif à une ligne de base adaptative.
+    """Détection de franchissement par seuil absolu de réflectivité (hystérésis).
 
     Utilisé quand le firmware n'embarque pas la logique (ancien sketch).
 
-    Le capteur photosensible ne fournit pas de pic absolu fiable : selon
-    l'éclairage et la couleur du sol, le passage de la ligne se traduit par une
-    *variation transitoire* (creux OU pic) de la luminosité autour d'un niveau
-    de fond lentement variable (ex. fond ~100 lux, creux ~70 lux au passage).
-    Un seuil absolu sur la réflectivité (~4-5 %) ne se déclenche donc jamais.
-
-    On suit une ligne de base (moyenne mobile exponentielle) et on déclenche un
-    franchissement quand l'écart relatif |lux - base| / base dépasse
-    `seuil_entree`, puis on ré-arme en repassant sous `seuil_sortie`. La ligne
-    de base est gelée pendant l'événement pour ne pas « absorber » la ligne.
+    Le capteur pointe la piste : asphalte / lumière ambiante = sombre (~3 %),
+    ligne éclairée ou réfléchissante au passage = très claire (>90 %). On
+    déclenche un franchissement sur le front montant quand la réflectivité
+    dépasse `seuil_haut`, puis on ré-arme en repassant sous `seuil_bas`. Un
+    anti-rebond évite les doublons. Ce seuil absolu sépare nettement le bruit
+    ambiant d'un vrai passage et n'est pas piégé par les micro-variations de
+    luminosité (qui faisaient déclencher l'ancienne détection par écart relatif).
     """
-    def __init__(self, seuil_entree=0.15, seuil_sortie=0.06,
-                 ema_alpha=0.05, anti_rebond_s=0.8, base_min_lux=5.0):
-        self.seuil_entree = seuil_entree
-        self.seuil_sortie = seuil_sortie
-        self.ema_alpha = ema_alpha
+    def __init__(self, seuil_haut=50.0, seuil_bas=25.0, anti_rebond_s=0.8):
+        self.seuil_haut = seuil_haut
+        self.seuil_bas = seuil_bas
         self.anti_rebond = anti_rebond_s
-        self.base_min_lux = base_min_lux
-        self.base = None       # ligne de base lux (EMA), amorcée à la 1re mesure
         self.sur_ligne = False
         self.tour = 0
         self.t_dern = 0.0      # horodatage du dernier franchissement
 
-    def update(self, lux, now):
-        """Retourne (ligne, tour, lap_ms) pour la mesure lux courante."""
-        if self.base is None:               # amorçage de la ligne de base
-            self.base = lux
-            return 0, self.tour, 0
-        base = max(self.base, self.base_min_lux)
-        ecart = abs(lux - base) / base      # écart relatif (creux ou pic)
+    def update(self, refl, now):
+        """Retourne (ligne, tour, lap_ms) pour la réflectivité courante (%)."""
         ligne = 0
         lap_ms = 0
         if not self.sur_ligne:
-            if ecart > self.seuil_entree and (now - self.t_dern) > self.anti_rebond:
+            if refl > self.seuil_haut and (now - self.t_dern) > self.anti_rebond:
                 self.sur_ligne = True
                 ligne = 1
                 if self.t_dern > 0:
                     lap_ms = int((now - self.t_dern) * 1000)
                 self.t_dern = now
                 self.tour += 1
-            else:                            # hors ligne : la base s'adapte lentement
-                self.base += self.ema_alpha * (lux - self.base)
-        elif ecart < self.seuil_sortie:
-            self.sur_ligne = False           # ré-armement (base figée ce tick)
+        elif refl < self.seuil_bas:
+            self.sur_ligne = False            # ré-armement pour la prochaine ligne
         return ligne, self.tour, lap_ms
 
 
@@ -187,10 +173,10 @@ def main():
     p.add_argument('--port', help='port série (USB ou Bluetooth SPP)')
     p.add_argument('--baud', type=int, default=115200)
     p.add_argument('--interval', type=float, default=0.1, help='cadence mini entre 2 INSERT (s)')
-    p.add_argument('--seuil-entree', type=float, default=0.15,
-                   help='écart relatif (0-1) à la ligne de base déclenchant un franchissement')
-    p.add_argument('--seuil-sortie', type=float, default=0.06,
-                   help='écart relatif sous lequel on ré-arme la détection')
+    p.add_argument('--seuil-haut', type=float, default=50.0,
+                   help='réflectivité %% au-dessus de laquelle on franchit la ligne')
+    p.add_argument('--seuil-bas', type=float, default=25.0,
+                   help='réflectivité %% sous laquelle on ré-arme la détection')
     p.add_argument('--anti-rebond', type=float, default=0.8,
                    help='délai mini (s) entre deux franchissements')
     p.add_argument('--demo', action='store_true',
@@ -218,7 +204,7 @@ def main():
     else:
         print('[!] MODE DÉMO — données simulées (ne pas utiliser pour une vraie mesure).')
 
-    detector = LineDetector(seuil_entree=a.seuil_entree, seuil_sortie=a.seuil_sortie,
+    detector = LineDetector(seuil_haut=a.seuil_haut, seuil_bas=a.seuil_bas,
                             anti_rebond_s=a.anti_rebond)
     cnt = 0; last = 0.0; t_demo = 0.0
     try:
@@ -244,7 +230,7 @@ def main():
                 if rec['rich']:
                     ligne, tour, lap_ms = rec['ligne'], rec['tour'], rec['lap_ms']
                 else:
-                    ligne, tour, lap_ms = detector.update(lux, now)
+                    ligne, tour, lap_ms = detector.update(refl, now)
             else:
                 # Démo : asphalte sombre + spike net à chaque passage de ligne
                 t_demo += a.interval
@@ -254,7 +240,7 @@ def main():
                 adc = int((lux/LUX_MAX)*1007)
                 refl = max(0.0, min(100.0, lux/LUX_MAX*100))
                 status = 'OK' if adc > 2 else 'ERR'
-                ligne, tour, lap_ms = detector.update(lux, now)
+                ligne, tour, lap_ms = detector.update(refl, now)
 
             if now - last < a.interval:
                 continue
@@ -267,13 +253,10 @@ def main():
                 (dist, round(lux), adc, round(refl, 2), ligne, tour, lap_ms, status))
             conn.commit()
             cnt += 1; last = now
-            base = detector.base or lux
             if ligne:
                 mark = '🏁'
-            elif lux < base * 0.94:
-                mark = '🌑'      # creux marqué (ligne probable)
-            elif lux > base * 1.06:
-                mark = '💡'      # pic marqué
+            elif refl > detector.seuil_bas:
+                mark = '💡'      # réflectivité élevée (proche/au-dessus du seuil)
             else:
                 mark = '·'
             extra = f'  >>> FRANCHISSEMENT · TOUR {tour}' + (f' ({lap_ms} ms)' if lap_ms else '') if ligne else ''
